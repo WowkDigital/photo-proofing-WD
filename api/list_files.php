@@ -21,8 +21,8 @@ try {
         exit;
     }
 
-    // Pobierz pliki tylko dla tego albumu, sortując po oryginalnej nazwie
-    $stmt = $pdo->prepare("SELECT filename, original_filename FROM photos WHERE album_id = ? ORDER BY original_filename ASC");
+    // Pobierz pliki dla tego albumu. Sortowaniem zajmie się klient po odszyfrowaniu.
+    $stmt = $pdo->prepare("SELECT filename, original_filename FROM photos WHERE album_id = ?");
     $stmt->execute([$albumId]);
     $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

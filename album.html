@@ -799,6 +799,22 @@
                 return promise;
             }
 
+            async function decryptString(base64str, key) {
+                if (!base64str) return base64str;
+                try {
+                    const binary = atob(base64str);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    if (bytes.byteLength < 12) return base64str;
+                    const iv = bytes.slice(0, 12);
+                    const ciphertext = bytes.slice(12);
+                    const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+                    return new TextDecoder().decode(decryptedBuffer);
+                } catch(e) {
+                    return base64str; // Jeśli To nie Base64 (stare pliki), zwróć po prostu nazwę
+                }
+            }
+
             // --- SEKCJA: GŁÓWNA LOGIKA APLIKACJI ---
             async function loadConfig() {
                 try {
@@ -1169,10 +1185,22 @@
                     const fileData = await response.json();
                     if (!Array.isArray(fileData) || fileData.length === 0) throw new Error('Galeria jest pusta lub lista plików jest nieprawidłowa.');
 
-                    photos = fileData.map((data, index) => ({
+                    const decryptedData = await Promise.all(fileData.map(async (data) => {
+                        const originalName = await decryptString(data.original_filename, decryptionKey);
+                        return { ...data, original_filename_decrypted: originalName };
+                    }));
+
+                    // Sortowanie plików na frontendzie alfabetycznie po odszyfrowaniu
+                    decryptedData.sort((a, b) => {
+                        const nameA = a.original_filename_decrypted || a.filename;
+                        const nameB = b.original_filename_decrypted || b.filename;
+                        return nameA.localeCompare(nameB);
+                    });
+
+                    photos = decryptedData.map((data, index) => ({
                         id: index + 1, 
                         filename: data.filename,
-                        original_filename: data.original_filename,
+                        original_filename: data.original_filename_decrypted,
                         thumbnail: `api/serve_image.php?type=thumb&file=${encodeURIComponent(data.filename)}`,
                         full: `api/serve_image.php?type=full&file=${encodeURIComponent(data.filename)}`,
                         selected: false

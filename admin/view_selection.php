@@ -100,26 +100,33 @@ try {
 
             <!-- Content: Lista Zdjęć -->
             <div class="lg:col-span-2">
-                <div class="bg-gray-800 rounded-lg border border-gray-700 shadow-lg overflow-hidden">
-                    <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
+                <div class="bg-gray-800 rounded-lg border border-gray-700 shadow-lg overflow-hidden flex flex-col h-full">
+                    <div class="p-4 border-b border-gray-700 flex flex-col sm:flex-row justify-between items-center bg-gray-800/50 gap-4">
                         <h2 class="text-lg font-semibold text-white">Wybrane Zdjęcia (<?php echo count($photos); ?>)</h2>
-                        <button onclick="copyFilenames()" class="text-cyan-400 hover:text-white text-sm font-medium flex items-center transition-colors">
-                            <i data-lucide="copy" class="w-4 h-4 mr-2"></i> Kopiuj listę
-                        </button>
+                        
+                        <div class="flex items-center space-x-2 w-full sm:w-auto">
+                            <input type="text" id="admin-key" placeholder="Wklej klucz z linku..." class="w-full sm:w-64 bg-gray-900 border border-gray-600 rounded-md py-1.5 px-3 text-sm text-cyan-400 font-mono focus:border-cyan-500 outline-none">
+                            <button id="decrypt-btn" class="bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-medium py-1.5 px-4 rounded-md transition-colors whitespace-nowrap">
+                                Odszyfruj nazwy
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="p-4 bg-gray-900/30">
-                        <textarea id="filenames-list" class="w-full bg-gray-900 border border-gray-700 rounded-md p-3 text-sm text-gray-300 font-mono h-32 focus:ring-2 focus:ring-cyan-500 focus:outline-none" readonly><?php echo implode("\n", $photos); ?></textarea>
+                    <div class="p-4 bg-gray-900/30 flex-grow flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Lista plików:</span>
+                            <button onclick="copyFilenames()" class="text-gray-400 hover:text-white text-xs font-medium flex items-center transition-colors">
+                                <i data-lucide="copy" class="w-4 h-4 mr-1"></i> Kopiuj
+                            </button>
+                        </div>
+                        <textarea id="filenames-list" class="w-full flex-grow bg-gray-900 border border-gray-700 rounded-md p-3 text-sm text-gray-400 font-mono min-h-[16rem] focus:ring-2 focus:ring-cyan-500 focus:outline-none" readonly>Nazwy plików są zanonimizowane i zaszyfrowane (Zero-Knowledge Architecture).
+Wklej klucz sesji w pole powyżej i kliknij 'Odszyfruj nazwy', aby pobrać oryginalne nazwy plików.</textarea>
                     </div>
 
-                    <!-- Tutaj można by dodać podgląd miniaturek, jeśli mamy klucz deszyfrujący lub dostęp do serwera.
-                         Ponieważ pliki są szyfrowane E2EE, serwer nie widzi ich treści bez klucza.
-                         Administrator widzi tylko nazwy plików.
-                    -->
-                    <div class="p-6 text-center text-gray-500 text-sm">
+                    <div class="p-6 text-center text-gray-500 text-sm border-t border-gray-700 bg-gray-800/80">
                         <i data-lucide="lock" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
-                        <p>Podgląd zdjęć jest niedostępny, ponieważ pliki są zaszyfrowane End-to-End.</p>
-                        <p>Użyj nazw plików do identyfikacji zdjęć w folderze 'photos'.</p>
+                        <p>Podgląd samych obrazów jest niedostępny, ponieważ pliki na serwerze są zaszyfrowane End-to-End.</p>
+                        <p>Klucz służy tylko do odszyfrowania prawdziwych nazw plików wybranych przez klienta.</p>
                     </div>
                 </div>
             </div>
@@ -133,6 +140,71 @@ try {
             document.execCommand('copy'); 
             alert('Skopiowano listę plików do schowka!');
         }
+
+        const encryptedPhotos = <?php echo json_encode($photos); ?>;
+        
+        // --- KRYPTOGRAFIA KLIENTA DLA ADMINA ---
+        function hexStringToArrayBuffer(hexString) {
+            const bytes = new Uint8Array(hexString.length / 2);
+            for (let i = 0; i < hexString.length; i += 2) {
+                bytes[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
+            }
+            return bytes.buffer;
+        }
+
+        async function importKey(hexKey) {
+            if (hexKey.length !== 64) throw new Error("Nieprawidłowa długość klucza.");
+            const keyBuffer = hexStringToArrayBuffer(hexKey);
+            return crypto.subtle.importKey("raw", keyBuffer, { name: "AES-GCM" }, true, ["decrypt"]);
+        }
+
+        async function decryptString(base64str, key) {
+            if (!base64str) return base64str;
+            try {
+                const binary = atob(base64str);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                if (bytes.byteLength < 12) return base64str;
+                const iv = bytes.slice(0, 12);
+                const ciphertext = bytes.slice(12);
+                const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+                return new TextDecoder().decode(decryptedBuffer);
+            } catch(e) {
+                return base64str; // Fallback
+            }
+        }
+
+        document.getElementById('decrypt-btn').addEventListener('click', async () => {
+            const keyInput = document.getElementById('admin-key').value.trim();
+            if (!keyInput) return alert('Podaj klucz!');
+            
+            const btn = document.getElementById('decrypt-btn');
+            btn.textContent = 'Trwa...';
+            btn.disabled = true;
+
+            try {
+                const key = await importKey(keyInput);
+                const decryptedNames = [];
+                for (const encName of encryptedPhotos) {
+                    const decName = await decryptString(encName, key);
+                    decryptedNames.push(decName);
+                }
+
+                // Sortuj alfabetycznie odszyfrowane nazwy
+                decryptedNames.sort((a, b) => a.localeCompare(b));
+
+                const textarea = document.getElementById('filenames-list');
+                textarea.value = decryptedNames.join('\n');
+                textarea.classList.remove('text-gray-400');
+                textarea.classList.add('text-green-400');
+                btn.textContent = 'Rozszyfrowano!';
+                btn.classList.replace('bg-cyan-600', 'bg-green-600');
+            } catch (error) {
+                alert('Błąd deszyfrowania! Upewnij się, że podałeś prawidłowy klucz.\n' + error.message);
+                btn.textContent = 'Odszyfruj nazwy';
+                btn.disabled = false;
+            }
+        });
     </script>
 </body>
 </html>

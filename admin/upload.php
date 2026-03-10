@@ -287,7 +287,16 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             },
-            async encrypt(dataBuffer, key) { const iv = window.crypto.getRandomValues(new Uint8Array(12)); const ct = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, dataBuffer); const res = new Uint8Array(iv.length + ct.byteLength); res.set(iv, 0); res.set(new Uint8Array(ct), iv.length); return res.buffer; } 
+            async encrypt(dataBuffer, key) { const iv = window.crypto.getRandomValues(new Uint8Array(12)); const ct = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, dataBuffer); const res = new Uint8Array(iv.length + ct.byteLength); res.set(iv, 0); res.set(new Uint8Array(ct), iv.length); return res.buffer; },
+            async encryptString(text, key) {
+                const enc = new TextEncoder();
+                const dataBuffer = enc.encode(text);
+                const encryptedBuffer = await this.encrypt(dataBuffer, key);
+                const res = new Uint8Array(encryptedBuffer);
+                let binary = '';
+                for (let i = 0; i < res.byteLength; i++) binary += String.fromCharCode(res[i]);
+                return btoa(binary);
+            }
         };
         
         const ImageProcessor = { 
@@ -521,12 +530,13 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 setStatus('Szyfrowanie...', 'text-purple-400');
                 const encMain = await CryptoHelper.encrypt(await mainImageBlob.arrayBuffer(), STATE.encryptionKey.key); 
                 const encThumb = await CryptoHelper.encrypt(await thumbImageBlob.arrayBuffer(), STATE.encryptionKey.key); 
+                const encOriginalName = await CryptoHelper.encryptString(file.name, STATE.encryptionKey.key);
                 
                 setStatus('Wysyłanie...', 'text-orange-400');
                 const fd = new FormData(); 
                 fd.append('main_encrypted_file', new Blob([encMain])); 
                 fd.append('thumb_encrypted_file', new Blob([encThumb])); 
-                fd.append('original_filename', file.name); 
+                fd.append('original_filename', encOriginalName); 
                 fd.append('sequence_prefix', sequencePrefix); 
                 fd.append('album_id', STATE.targetAlbumId); 
                 fd.append('encryption_key_hash', STATE.encryptionKey.hash); // Wysyłamy hash
