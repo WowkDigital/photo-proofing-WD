@@ -21,7 +21,7 @@ try {
     }
 
     // Pobierz zdjęcia
-    $stmtPhotos = $pdo->prepare("SELECT photo_filename FROM selected_photos WHERE selection_id = ?");
+    $stmtPhotos = $pdo->prepare("SELECT p.original_filename FROM selected_photos sp JOIN photos p ON sp.photo_filename = p.filename WHERE sp.selection_id = ?");
     $stmtPhotos->execute([$id]);
     $photos = $stmtPhotos->fetchAll(PDO::FETCH_COLUMN);
 

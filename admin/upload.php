@@ -60,13 +60,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         $originalName = $_POST['original_filename'];
         $prefix = $_POST['sequence_prefix'];
 
-        // Sanityzacja (uproszczona wersja z base)
-        $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9-_\.]/', '-', pathinfo($originalName, PATHINFO_FILENAME)));
-        $cleanName = trim(preg_replace('/-+/', '-', $cleanName), '-');
-        
-        $finalFilename = $prefix . '_' . $cleanName . '.enc';
-        $mainPath = UPLOADS_DIR . $finalFilename;
-        $thumbPath = THUMBS_DIR . $finalFilename;
+        // Generujemy losową nazwę pliku z cyfr dla anonimowości
+        do {
+            $randomNumbers = '';
+            for ($i = 0; $i < 15; $i++) {
+                $randomNumbers .= mt_rand(0, 9);
+            }
+            $finalFilename = $randomNumbers . '.enc';
+            $mainPath = UPLOADS_DIR . $finalFilename;
+            $thumbPath = THUMBS_DIR . $finalFilename;
+        } while (file_exists($mainPath) || file_exists($thumbPath));
 
         if (file_exists($mainPath)) throw new Exception("Plik $finalFilename już istnieje.");
 
