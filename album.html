@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Proofing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- DODANE: Biblioteka Canvas-Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+
+        /* --- STYLE KARTY ZDJĘCIA --- */
+        .photo-card {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background-color: #2c2c54;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            cursor: pointer;
+            border: 3px solid #374151;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+            border-color: #4a5568;
+        }
+
+        .photo-card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease;
+        }
+
+        .photo-card:hover .photo-card-img {
+            transform: scale(1.1);
+        }
+
+        .selected-border {
+            border-color: #4ade80;
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
+        }
+
+        .selected-overlay {
+            background: linear-gradient(to top, rgba(74, 222, 128, 0.3), rgba(74, 222, 128, 0));
+            pointer-events: none;
+        }
+
+        /* --- STYLE PRZYCISKU ZAZNACZANIA --- */
+        .select-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            color: white;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .photo-card:hover .select-btn {
+            transform: scale(1.1);
+        }
+
+        .select-btn .lucide {
+            width: 60%;
+            height: 60%;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .photo-card:hover .select-btn:not(.selected) .lucide {
+            opacity: 0.8;
+            transform: scale(1);
+        }
+
+        .select-btn:not(.selected):hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .select-btn.selected {
+            background-color: #4ade80;
+            border-color: #4ade80;
+            box-shadow: 0 4px 10px rgba(74, 222, 128, 0.5);
+        }
+
+        .select-btn.selected .lucide {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* --- STYLE DLA STANU ŁADOWANIA/BŁĘDU --- */
+        .status-icon {
+            position: absolute;
+            z-index: 5;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        /* --- STYLE LIGHTBOXA --- */
+        .custom-lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .custom-lightbox img {
+            max-width: 90vw;
+            max-height: 85vh;
+            object-fit: contain;
+        }
+
+        /* DODATKOWE ZABEZPIECZENIE: ukryj img jeśli nie ma src */
+        .custom-lightbox img[src=""],
+        .custom-lightbox img:not([src]) {
+            opacity: 0;
+        }
+
+        .lightbox-btn {
+            position: absolute;
+            color: white;
+            background-color: rgba(30, 30, 30, 0.6);
+            border-radius: 50%;
+            width: 3rem;
+            height: 3rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .lightbox-btn:hover {
+            background-color: rgba(50, 50, 50, 0.8);
+        }
+
+        #lightbox-close {
+            top: 1.5rem;
+            right: 1.5rem;
+        }
+
+        #lightbox-prev,
+        #lightbox-next {
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        #lightbox-prev {
+            left: 1.5rem;
+        }
+
+        #lightbox-next {
+            right: 1.5rem;
+        }
+
+        #lightbox-select-btn {
+            top: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #lightbox-select-btn.selected {
+            background-color: #4ade80;
+            color: white;
+        }
+
+        #lightbox-counter {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #e0e0e0;
+            padding: 0.4rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            user-select: none;
+            z-index: 1010;
+        }
+
+        #lightbox-loader {
+            position: absolute;
+            z-index: 1005;
+        }
+
+        /* --- STYLE MODALU HASŁA --- */
+        #password-modal {
+            z-index: 2000;
+        }
+
+        /* --- POZOSTAŁE STYLE --- */
+        .layout-btn {
+            border-radius: 9999px;
+            transition: background-color 0.2s, color 0.2s;
+            color: #9ca3af;
+        }
+
+        .layout-btn:hover {
+            color: #e5e7eb;
+        }
+
+        .layout-btn.active {
+            background-color: #4ade80;
+            color: #1a1a2e;
+        }
+
+        /* --- STYL DLA MINIATUREK W FORMULARZU --- */
+        .selected-thumb-card {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            border-radius: 0.375rem;
+            /* rounded-md */
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid #4a5568;
+        }
+
+        .selected-thumb-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .selected-thumb-card .overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(220, 38, 38, 0.7);
+            /* Czerwony overlay */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+            /* Ważne, aby kliknięcie przechodziło do .selected-thumb-card */
+        }
+
+        .selected-thumb-card:hover .overlay {
+            opacity: 1;
+        }
+
+        .selected-thumb-card .overlay .lucide {
+            width: 50%;
+            height: 50%;
+            color: white;
+        }
+
+        /* --- USPRAWNIENIE: Animacja dla kontenera miniatur --- */
+        #selected-thumbnails-container {
+            transition: opacity 0.4s ease, transform 0.4s ease, max-height 0.4s ease-out, margin-bottom 0.4s ease-out;
+            opacity: 1;
+            transform: translateY(0);
+            max-height: 2000px;
+            /* Wystarczająco duża wysokość */
+            overflow: hidden;
+        }
+
+        #selected-thumbnails-container.is-hidden {
+            opacity: 0;
+            transform: translateY(-10px);
+            max-height: 0;
+            margin-bottom: 0 !important;
+            /* Ukryj też margines */
+        }
+
+        /* --- ZMODYFIKOWANY STYL: FLOATING ACTION BUTTON --- */
+        .floating-btn {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 40;
+            height: 3.5rem;
+            padding: 0 1.5rem 0 1.25rem;
+            /* Padding dla kształtu 'tabletki' */
+            gap: 0.5rem;
+            border-radius: 9999px;
+            background-color: #4ade80;
+            /* green-400 */
+            color: #1a1a2e;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            /* Domyślnie ukryty */
+            transform: translateY(20px) scale(0.9);
+            pointer-events: none;
+        }
+
+        .floating-btn.visible {
+            opacity: 0.7;
+            /* Półprzezroczysty gdy widoczny */
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .floating-btn:hover {
+            opacity: 1;
+            /* W pełni widoczny po najechaniu */
+            background-color: #22c55e;
+            /* green-500 */
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .floating-btn:active {
+            transform: translateY(0) scale(0.95);
+        }
+    </style>
+</head>
+
+<body class="p-4 sm:p-6 md:p-8">
+
+    <div id="app-content" class="max-w-7xl mx-auto hidden relative">
+        <button id="scroll-to-form-btn" class="floating-btn" aria-label="Przewiń do formularza wyboru"
+            title="Przejdź do podsumowania">
+            <i data-lucide="arrow-down" class="w-6 h-6"></i>
+            <span>Podsumowanie</span>
+        </button>
+
+        <div id="instructions"
+            class="mb-8 p-6 bg-[#2c2c54] rounded-lg border border-gray-600 shadow-lg relative transition-opacity duration-300">
+            <button id="close-instructions-btn" class="absolute top-3 right-4 text-gray-400 hover:text-white"
+                aria-label="Zamknij instrukcję"><i data-lucide="x"></i></button>
+            <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="info"
+                    class="w-6 h-6 mr-2 text-green-400"></i>Jak korzystać z galerii?</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-gray-300 text-sm">
+                <div class="flex items-start space-x-3"><i data-lucide="zoom-in"
+                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Kliknij na zdjęcie, aby je
+                        <strong>powiększyć</strong>.</span></div>
+                <div class="flex items-start space-x-3"><i data-lucide="move-horizontal"
+                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Użyj strzałek lub <strong>przesuń
+                            palcem</strong>, aby nawigować.</span></div>
+                <div class="flex items-start space-x-3"><i data-lucide="circle-check"
+                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Kliknij w <strong>kółko
+                            ✓</strong>, aby wybrać/odznaczyć zdjęcie.</span></div>
+                <div class="flex items-start space-x-3"><i data-lucide="layout-grid"
+                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Zmień <strong>układ
+                            kolumn</strong> za pomocą przycisków w nagłówku.</span></div>
+                <div class="flex items-start space-x-3 sm:col-span-2 lg:col-span-2"><i data-lucide="file-check-2"
+                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Po zakończeniu, kliknij
+                        <strong>"Potwierdź i zapisz wybór"</strong>.</span></div>
+            </div>
+        </div>
+
+        <header
+            class="sticky top-0 z-20 bg-[#1a1a2e] bg-opacity-90 backdrop-blur-sm p-4 rounded-b-xl shadow-lg mb-6 flex flex-wrap items-center justify-between gap-y-3">
+            <h1 id="album-title" class="text-2xl sm:text-3xl font-bold w-full text-center sm:w-auto sm:text-left">
+                Ładowanie...</h1>
+            <div class="w-full sm:w-auto flex items-center justify-center sm:justify-end gap-x-6">
+                <div id="main-layout-controls"
+                    class="layout-controls-group flex items-center space-x-1 bg-gray-700/50 p-1 rounded-full"
+                    title="Zmień liczbę kolumn">
+                    <button data-cols="2" title="2 kolumny"
+                        class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">2</button>
+                    <button data-cols="3" title="3 kolumny"
+                        class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">3</button>
+                    <button data-cols="4" title="4 kolumny"
+                        class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">4</button>
+                    <button data-cols="5" title="5 kolumny"
+                        class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">5</button>
+                    <button data-cols="6" title="6 kolumny"
+                        class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">6</button>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-lg font-medium text-gray-400 hidden sm:inline">Zaznaczono:</span>
+                    <i data-lucide="check-circle" class="w-6 h-6 text-green-400 sm:hidden"></i>
+                    <span id="selected-count" class="text-2xl font-bold text-green-400">0</span>
+                </div>
+            </div>
+        </header>
+
+        <main id="photo-gallery" class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4"></main>
+
+        <section id="submission-form-section" class="mt-16 mb-8 max-w-4xl mx-auto">
+            <div class="bg-[#2c2c54] rounded-lg shadow-xl p-6 sm:p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold mb-4 text-center text-white">Zakończ wybór</h2>
+                <p class="text-center text-gray-300 mb-8 max-w-2xl mx-auto">
+                    Abyśmy mogli zrealizować Twoje zamówienie, potrzebujemy możliwości kontaktu. <br>
+                    Podaj swoje <strong>imię/pseudonim</strong> oraz <strong>przynajmniej jedną</strong> formę kontaktu
+                    z poniższych.
+                </p>
+                <form id="user-details-form" novalidate>
+
+                    <div id="selected-thumbnails-container" class="mb-8 is-hidden">
+                        <div class="flex flex-wrap justify-between items-center mb-4 gap-y-3">
+                            <h3 id="selected-thumbnails-title" class="text-lg font-semibold text-gray-200 mr-4">Twój
+                                wybór (0):</h3>
+                            <div id="selection-layout-controls"
+                                class="layout-controls-group flex items-center space-x-1 bg-gray-700/50 p-1 rounded-full scale-90 origin-right sm:origin-center"
+                                title="Zmień liczbę kolumn miniatur">
+                                <button type="button" data-cols="3" title="3 kolumny"
+                                    class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold active">3</button>
+                                <button type="button" data-cols="4" title="4 kolumny"
+                                    class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">4</button>
+                                <button type="button" data-cols="5" title="5 kolumny"
+                                    class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">5</button>
+                                <button type="button" data-cols="6" title="6 kolumny"
+                                    class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">6</button>
+                                <button type="button" data-cols="8" title="8 kolumny"
+                                    class="layout-btn h-8 w-8 flex items-center justify-center text-sm font-semibold">8</button>
+                            </div>
+                        </div>
+                        <div id="selected-thumbnails-grid" class="grid grid-cols-3 gap-2 transition-all duration-300">
+                        </div>
+                    </div>
+
+                    <div class="relative mb-8">
+                        <label for="client-name" class="block mb-2 text-sm font-medium text-gray-300">Imię / nickname
+                            <span class="text-green-400">*</span></label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
+                                    data-lucide="user" class="w-5 h-5"></i></span>
+                            <input type="text" id="client-name" name="name"
+                                class="w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
+                                placeholder="Wpisz imię lub nickname" required>
+                        </div>
+                    </div>
+
+                    <div class="border border-gray-600/50 rounded-lg p-5 mb-8 bg-[#242446]">
+                        <h3 class="text-lg font-semibold mb-4 text-gray-200 flex items-center">
+                            <i data-lucide="contact" class="w-5 h-5 mr-2 text-blue-400"></i>
+                            Dane kontaktowe <span class="text-sm font-normal text-gray-400 ml-2">(wymagane przynajmniej
+                                jedno)</span>
+                        </h3>
+
+                        <div class="space-y-6">
+                            <!-- WYRÓŻNIONY TELEGRAM -->
+                            <div class="relative bg-blue-500/10 p-4 rounded-lg border border-blue-500/40">
+                                <span
+                                    class="absolute -top-2.5 right-4 bg-blue-500 text-xs text-white px-2 py-0.5 rounded-full font-semibold tracking-wider">PREFEROWANY</span>
+                                <label for="client-telegram"
+                                    class="block mb-2 text-sm font-medium text-blue-300">Telegram</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-blue-400"><i
+                                            data-lucide="send" class="w-5 h-5"></i></span>
+                                    <input type="text" id="client-telegram" name="telegram"
+                                        class="contact-field w-full bg-[#1a1a2e] border border-blue-500/50 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-500"
+                                        placeholder="@username lub numer">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
+                                            data-lucide="mail" class="w-5 h-5"></i></span>
+                                    <input type="email" id="client-email" name="email"
+                                        class="contact-field w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
+                                        placeholder="Adres e-mail">
+                                </div>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
+                                            data-lucide="phone" class="w-5 h-5"></i></span>
+                                    <input type="tel" id="client-phone" name="phone"
+                                        class="contact-field w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
+                                        placeholder="Numer telefonu">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                <div class="relative"><span
+                                        class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
+                                            data-lucide="instagram" class="w-5 h-5"></i></span><input type="text"
+                                        id="client-instagram" name="instagram"
+                                        class="contact-field w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
+                                        placeholder="Instagram"></div>
+                                <div class="relative"><span
+                                        class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
+                                            data-lucide="facebook" class="w-5 h-5"></i></span><input type="text"
+                                        id="client-facebook" name="facebook"
+                                        class="contact-field w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
+                                        placeholder="Facebook"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative mb-8">
+                        <label for="client-notes" class="block mb-2 text-sm font-medium text-gray-300">Dodatkowe notatki
+                            (opcjonalnie)</label>
+                        <div class="relative">
+                            <span class="absolute top-3.5 left-0 flex items-center pl-3.5 text-gray-400"><i
+                                    data-lucide="pencil" class="w-5 h-5"></i></span>
+                            <textarea id="client-notes" name="notes" rows="3"
+                                class="w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
+                                placeholder="Wiadomość dla fotografa..."></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-form-btn"
+                        class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center space-x-2 text-lg disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none"
+                        disabled><i data-lucide="check-circle" class="w-6 h-6"></i><span>Potwierdź i zapisz
+                            wybór</span></button>
+
+                    <!-- ZMIANA: Dodano kontener na brakujące kryteria -->
+                    <div id="validation-criteria-container"
+                        class="mt-4 text-sm text-yellow-400/90 bg-yellow-900/20 p-3 rounded-md border border-yellow-400/30 hidden">
+                        <p class="font-semibold mb-2">Aby aktywować przycisk, musisz jeszcze:</p>
+                        <ul id="validation-criteria-list" class="list-disc list-inside space-y-1">
+                            <!-- JS wstrzyknie tutaj brakujące kryteria -->
+                        </ul>
+                    </div>
+
+                    <!-- ZMIANA: Stary komunikat zostanie ukryty przez JS -->
+                    <p id="selection-required-msg" class="text-center text-red-400/80 text-sm mt-4">Należy wybrać
+                        przynajmniej jedno zdjęcie, aby zapisać wybór.</p>
+
+                    <p id="contact-required-msg"
+                        class="text-center text-red-400/90 font-medium text-base mt-4 hidden bg-red-500/10 p-2 rounded-md border border-red-500/30"
+                        aria-live="polite">
+                        <i data-lucide="alert-circle" class="inline-block w-5 h-5 mr-1 -mt-0.5"></i>
+                        Podaj przynajmniej jedną formę kontaktu!
+                    </p>
+                </form>
+            </div>
+        </section>
+        <section id="contact-section" class="mt-16 mb-8 max-w-4xl mx-auto">
+            <h2 class="text-2xl font-bold mb-6 text-center text-white">Masz pytania? Skontaktuj się!</h2>
+            <div class="flex items-center justify-center flex-wrap gap-4">
+                <a id="contact-telegram" href="#"
+                    class="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
+                        data-lucide="send"></i><span>Telegram</span></a>
+                <a id="contact-facebook" href="#"
+                    class="flex items-center space-x-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
+                        data-lucide="facebook"></i><span>Facebook</span></a>
+                <a id="contact-signal" href="#"
+                    class="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
+                        data-lucide="message-circle"></i><span>Signal</span></a>
+                <a id="contact-whatsapp" href="#"
+                    class="flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
+                        data-lucide="message-circle"></i> <span>WhatsApp</span></a>
+                <a id="contact-instagram" href="#"
+                    class="flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition-opacity"><i
+                        data-lucide="instagram"></i><span>Instagram</span></a>
+            </div>
+        </section>
+
+        <footer class="text-center py-8 text-gray-500 text-sm">
+            <p>made with <span class="text-red-500">❤️</span> by Wowk Digital</p>
+        </footer>
+    </div>
+
+    <div id="custom-lightbox" class="custom-lightbox">
+        <div id="lightbox-loader" class="status-icon hidden"><i data-lucide="loader-circle"
+                class="w-12 h-12 spinner"></i></div>
+        <button id="lightbox-close" class="lightbox-btn" aria-label="Zamknij podgląd"><i data-lucide="x"
+                class="w-7 h-7"></i></button>
+        <button id="lightbox-prev" class="lightbox-btn" aria-label="Poprzednie zdjęcie"><i data-lucide="chevron-left"
+                class="w-7 h-7"></i></button>
+        <img id="lightbox-img" src="" alt="">
+        <button id="lightbox-next" class="lightbox-btn" aria-label="Następne zdjęcie"><i data-lucide="chevron-right"
+                class="w-7 h-7"></i></button>
+        <button id="lightbox-select-btn" class="lightbox-btn" aria-label="Wybierz zdjęcie"><i data-lucide="check"
+                class="w-8 h-8"></i></button>
+        <div id="lightbox-counter"></div>
+    </div>
+
+    <div id="results-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[3000] p-4">
+        <div
+            class="bg-[#2c2c54] rounded-lg shadow-xl p-6 sm:p-8 w-full max-w-md text-center relative border border-gray-700">
+            <!-- Ikona (ładowanie, sukces, błąd) -->
+            <div id="modal-icon-container"
+                class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-gray-600 mb-4">
+                <!-- JS wstrzyknie ikonę -->
+            </div>
+
+            <!-- Tytuł -->
+            <h2 id="modal-title" class="text-2xl font-bold mb-2 text-center text-white">...</h2>
+
+            <!-- Wiadomość -->
+            <p id="modal-message" class="text-gray-300 text-center mb-6">...</p>
+
+            <!-- Szczegóły (dla sukcesu/błędu) -->
+            <div id="modal-details-container" class="hidden text-left">
+                <p class="text-left mb-2 text-gray-300 text-sm">Szczegóły (do skopiowania):</p>
+                <textarea id="selected-list" readonly
+                    class="w-full h-32 bg-[#1a1a2e] border border-gray-600 rounded-md p-2 text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"></textarea>
+                <button id="copy-btn"
+                    class="mt-2 w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors text-sm">Skopiuj
+                    do schowka</button>
+            </div>
+
+            <!-- Główny przycisk zamknięcia -->
+            <button id="close-results-modal-btn"
+                class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">Zamknij</button>
+        </div>
+    </div>
+
+    <div id="confirmation-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[3000] p-4">
+        <div
+            class="bg-[#2c2c54] rounded-lg shadow-xl p-6 w-full max-w-sm text-center border border-gray-700 animate-in zoom-in-95 duration-200">
+            <i data-lucide="alert-triangle" class="w-12 h-12 mx-auto mb-4 text-yellow-500"></i>
+            <h3 class="text-xl font-bold mb-2 text-white">Potwierdź usunięcie</h3>
+            <p class="text-gray-300 mb-6">Czy na pewno chcesz usunąć to zdjęcie z zaznaczonych?</p>
+            <div class="flex justify-center space-x-3">
+                <button id="confirm-cancel-btn"
+                    class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors font-semibold">Anuluj</button>
+                <button id="confirm-delete-btn"
+                    class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-semibold">Usuń</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="password-modal"
+        class="fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center p-4 z-[2000]">
+        <div class="bg-[#2c2c54] rounded-lg shadow-xl p-8 w-full max-w-sm text-center border border-gray-700">
+            <i data-lucide="lock-keyhole" class="w-12 h-12 mx-auto mb-4 text-cyan-400"></i>
+            <h2 class="text-2xl font-bold mb-2">Galeria jest chroniona</h2>
+            <p class="text-gray-400 mb-6">Podaj klucz dostępu, aby odszyfrować i wyświetlić zdjęcia.</p>
+            <form id="password-form">
+                <input type="text" id="password-input"
+                    class="w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 px-4 text-center text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-gray-500"
+                    placeholder="Wklej klucz tutaj...">
+                <p id="password-error" class="text-red-400 text-sm h-5 mt-2" aria-live="polite"></p>
+                <button type="submit"
+                    class="w-full mt-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Odblokuj
+                    Galerię</button>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- SEKCJA: ELEMENTY UI ---
+            const appContent = document.getElementById('app-content');
+            const gallery = document.getElementById('photo-gallery');
+            const instructions = document.getElementById('instructions');
+            const closeInstructionsBtn = document.getElementById('close-instructions-btn');
+            const mainLayoutControls = document.getElementById('main-layout-controls');
+            const userDetailsForm = document.getElementById('user-details-form');
+            const submitFormBtn = document.getElementById('submit-form-btn');
+            const selectedCountElement = document.getElementById('selected-count');
+            const albumTitleElement = document.getElementById('album-title');
+            const scrollToFormBtn = document.getElementById('scroll-to-form-btn');
+            const submissionFormSection = document.getElementById('submission-form-section');
+
+            // --- ELEMENTY UI DLA MINIATUREK W FORMULARZU ---
+            const selectedThumbnailsContainer = document.getElementById('selected-thumbnails-container');
+            const selectedThumbnailsGrid = document.getElementById('selected-thumbnails-grid');
+            const selectedThumbnailsTitle = document.getElementById('selected-thumbnails-title');
+            const selectionLayoutControls = document.getElementById('selection-layout-controls');
+
+            const contactRequiredMsg = document.getElementById('contact-required-msg');
+
+            // ZMIANA: Dodano nowe elementy walidacji
+            const validationContainer = document.getElementById('validation-criteria-container');
+            const validationList = document.getElementById('validation-criteria-list');
+            const selectionRequiredMsg = document.getElementById('selection-required-msg');
+
+
+            const contactLinks = {
+                telegram: document.getElementById('contact-telegram'),
+                facebook: document.getElementById('contact-facebook'),
+                signal: document.getElementById('contact-signal'),
+                whatsapp: document.getElementById('contact-whatsapp'),
+                instagram: document.getElementById('contact-instagram'),
+            };
+
+            const lightbox = {
+                element: document.getElementById('custom-lightbox'),
+                img: document.getElementById('lightbox-img'),
+                loader: document.getElementById('lightbox-loader'),
+                closeBtn: document.getElementById('lightbox-close'),
+                prevBtn: document.getElementById('lightbox-prev'),
+                nextBtn: document.getElementById('lightbox-next'),
+                selectBtn: document.getElementById('lightbox-select-btn'),
+                counter: document.getElementById('lightbox-counter'),
+            };
+
+            const resultsModal = {
+                element: document.getElementById('results-modal'),
+                closeBtn: document.getElementById('close-results-modal-btn'),
+                iconContainer: document.getElementById('modal-icon-container'),
+                title: document.getElementById('modal-title'),
+                message: document.getElementById('modal-message'),
+                detailsContainer: document.getElementById('modal-details-container'),
+                list: document.getElementById('selected-list'),
+                copyBtn: document.getElementById('copy-btn'),
+            };
+
+            const confirmationModal = {
+                element: document.getElementById('confirmation-modal'),
+                cancelBtn: document.getElementById('confirm-cancel-btn'),
+                deleteBtn: document.getElementById('confirm-delete-btn'),
+                photoIdToDelete: null
+            };
+
+            const passwordModal = {
+                element: document.getElementById('password-modal'),
+                form: document.getElementById('password-form'),
+                input: document.getElementById('password-input'),
+                error: document.getElementById('password-error'),
+            };
+
+            // --- SEKCJA: STAN APLIKACJI ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const albumSlug = urlParams.get('s') || 'default';
+            let photos = [];
+            let currentPhotoIndex = -1;
+            let decryptionKey = null;
+            const decryptedCache = new Map();
+            const decryptionPromises = new Map();
+
+            // --- SEKCJA: LOGIKA SZYFROWANIA (DEKRYPCJI) ---
+            function hexStringToArrayBuffer(hexString) {
+                const bytes = new Uint8Array(hexString.length / 2);
+                for (let i = 0; i < hexString.length; i += 2) {
+                    bytes[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
+                }
+                return bytes.buffer;
+            }
+
+            async function importKey(hexKey) {
+                if (hexKey.length !== 64) throw new Error("Nieprawidłowa długość klucza.");
+                const keyBuffer = hexStringToArrayBuffer(hexKey);
+                return crypto.subtle.importKey("raw", keyBuffer, { name: "AES-GCM" }, true, ["decrypt"]);
+            }
+
+            async function decryptImage(url, key) {
+                if (!key) throw new Error("Klucz deszyfrujący nie jest ustawiony.");
+
+                if (decryptedCache.has(url)) return decryptedCache.get(url);
+                if (decryptionPromises.has(url)) return decryptionPromises.get(url);
+
+                const promise = (async () => {
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error(`Nie można pobrać pliku: ${response.statusText}`);
+                        const encryptedData = await response.arrayBuffer();
+                        if (encryptedData.byteLength < 28) throw new Error("Plik jest uszkodzony lub pusty.");
+
+                        const iv = encryptedData.slice(0, 12);
+                        const ciphertext = encryptedData.slice(12);
+
+                        const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+                        const blob = new Blob([decryptedBuffer], { type: "image/jpeg" });
+                        const objectUrl = URL.createObjectURL(blob);
+
+                        decryptedCache.set(url, objectUrl);
+                        return objectUrl;
+                    } finally {
+                        decryptionPromises.delete(url);
+                    }
+                })();
+
+                decryptionPromises.set(url, promise);
+                return promise;
+            }
+
+            // --- SEKCJA: GŁÓWNA LOGIKA APLIKACJI ---
+            async function loadConfig() {
+                try {
+                    const response = await fetch(`api/get_config.php?s=${albumSlug}`);
+                    if (!response.ok) throw new Error('Nie udało się wczytać konfiguracji.');
+                    const config = await response.json();
+
+                    if (albumTitleElement && config.albumTitle) {
+                        albumTitleElement.textContent = config.albumTitle;
+                        document.title = config.albumTitle;
+                    }
+                    for (const key in config.contactLinks) {
+                        if (contactLinks[key] && config.contactLinks[key] !== '#') {
+                            contactLinks[key].href = config.contactLinks[key];
+                        } else if (contactLinks[key]) {
+                            contactLinks[key].style.display = 'none';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Błąd wczytywania konfiguracji:', error);
+                    if (albumTitleElement) albumTitleElement.textContent = 'Błąd ładowania tytułu';
+                }
+            }
+
+            async function handleSaveSelection(clientData) {
+                const selectedPhotos = photos.filter(p => p.selected);
+                if (selectedPhotos.length === 0) return;
+                const filenames = selectedPhotos.map(p => p.filename);
+
+                let clipboardText = `Dane Klienta:\n`;
+                if (clientData.name) clipboardText += `Imię: ${clientData.name}\n`;
+                if (clientData.email) clipboardText += `Email: ${clientData.email}\n`;
+                if (clientData.phone) clipboardText += `Telefon: ${clientData.phone}\n`;
+                if (clientData.instagram) clipboardText += `Instagram: ${clientData.instagram}\n`;
+                if (clientData.telegram) clipboardText += `Telegram: ${clientData.telegram}\n`;
+                if (clientData.facebook) clipboardText += `Facebook: ${clientData.facebook}\n`;
+                if (clientData.notes) clipboardText += `Notatki: ${clientData.notes}\n`;
+                clipboardText += `\nWybrane pliki (${filenames.length}):\n${filenames.join('\n')}`;
+
+                resultsModal.list.value = clipboardText;
+                resultsModal.element.classList.remove('hidden');
+
+                // 1. Ustaw stan ładowania
+                resultsModal.iconContainer.innerHTML = '<i data-lucide="loader-circle" class="w-10 h-10 spinner text-white"></i>';
+                resultsModal.iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-500 mb-4";
+                resultsModal.title.textContent = 'Zapisywanie...';
+                resultsModal.message.textContent = 'Proszę czekać, trwa przesyłanie Twojego wyboru.';
+                resultsModal.detailsContainer.classList.add('hidden');
+                lucide.createIcons();
+
+                try {
+                    const response = await fetch(`api/save-selection.php?s=${albumSlug}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ clientData, selectedFiles: filenames, selectionDate: new Date().toISOString() })
+                    });
+                    if (!response.ok) throw new Error(`Błąd serwera: ${response.status}`);
+
+                    // --- ZMIANA: Sztuczne opóźnienie ---
+                    resultsModal.message.textContent = 'Przetwarzanie zapisu...';
+                    // Czekaj 1.5 sekundy
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    // --- KONIEC ZMIANY ---
+
+                    // 2. Ustaw stan sukcesu
+                    resultsModal.iconContainer.innerHTML = '<i data-lucide="check" class="w-10 h-10 text-white"></i>';
+                    resultsModal.iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-500 mb-4";
+                    resultsModal.title.textContent = 'Wybór Zapisany!';
+                    resultsModal.message.textContent = 'Twoje wybrane zdjęcia zostały pomyślnie przesłane. Dziękujemy!';
+                    resultsModal.detailsContainer.classList.remove('hidden'); // Pokaż szczegóły
+                    lucide.createIcons();
+
+                    // 3. Konfetti! (z opóźnieniem 1s)
+                    // --- ZMIANA: Opóźnienie konfetti ---
+                    setTimeout(() => {
+                        if (typeof confetti === 'function') {
+                            confetti({
+                                particleCount: 150,
+                                spread: 90,
+                                origin: { y: 0.6 },
+                                zIndex: 3001 // Nad modalem
+                            });
+                        }
+                    }, 1000); // 1 sekunda opóźnienia PO pojawieniu się sukcesu
+                    // --- KONIEC ZMIANY ---
+
+                } catch (error) {
+                    console.error('Błąd podczas zapisywania wyboru:', error);
+
+                    // 4. Ustaw stan błędu
+                    resultsModal.iconContainer.innerHTML = '<i data-lucide="alert-triangle" class="w-10 h-10 text-white"></i>';
+                    resultsModal.iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-500 mb-4";
+                    resultsModal.title.textContent = 'Wystąpił Błąd';
+                    resultsModal.message.textContent = 'Niestety, nie udało się zapisać Twojego wyboru. Skopiuj szczegóły poniżej i skontaktuj się z fotografem.';
+
+                    resultsModal.list.value = `Błąd: ${error.message}\n\n${clipboardText}`; // Pokaż błąd w textarea
+                    resultsModal.detailsContainer.classList.remove('hidden');
+                    lucide.createIcons();
+                }
+            }
+
+            function renderSelectedThumbnails() {
+                if (!selectedThumbnailsContainer || !selectedThumbnailsGrid || !selectedThumbnailsTitle) return;
+
+                const selectedPhotos = photos.filter(p => p.selected);
+                selectedThumbnailsGrid.innerHTML = '';
+
+                if (selectedPhotos.length === 0) {
+                    selectedThumbnailsContainer.classList.add('is-hidden');
+                    return;
+                }
+
+                selectedThumbnailsContainer.classList.remove('is-hidden');
+                selectedThumbnailsTitle.textContent = `Twój wybór (${selectedPhotos.length}):`;
+
+                selectedPhotos.forEach(photo => {
+                    const thumbCard = document.createElement('div');
+                    thumbCard.className = 'selected-thumb-card';
+                    thumbCard.title = `Kliknij, aby usunąć z zaznaczenia: ${photo.filename}`;
+                    thumbCard.dataset.id = photo.id;
+
+                    const decryptedUrl = decryptedCache.get(photo.thumbnail);
+
+                    if (decryptedUrl) {
+                        thumbCard.innerHTML = `
+                        <img src="${decryptedUrl}" alt="Miniaturka ${photo.filename}">
+                        <div class="overlay">
+                            <i data-lucide="trash-2"></i>
+                        </div>
+                    `;
+                    } else {
+                        thumbCard.innerHTML = `
+                        <div class="w-full h-full bg-gray-700 flex items-center justify-center">
+                            <i data-lucide="image-off" class="w-8 h-8 text-gray-500"></i>
+                        </div>
+                    `;
+                        console.warn(`Brak zbuforowanej miniaturki dla ${photo.filename} w formularzu.`);
+                    }
+                    selectedThumbnailsGrid.appendChild(thumbCard);
+                });
+
+                lucide.createIcons();
+            }
+
+            // ZMIANA: Przebudowany walidator formularza
+            function validateFormAndToggleButton() {
+                if (!submitFormBtn) return;
+
+                // Warunek 1: Zdjęcia
+                const hasPhotos = photos.filter(p => p.selected).length > 0;
+
+                // Warunek 2: Imię
+                const clientNameInput = document.getElementById('client-name');
+                const hasName = clientNameInput && clientNameInput.value.trim() !== '';
+
+                // Warunek 3: Kontakt
+                const contactFields = userDetailsForm.querySelectorAll('.contact-field');
+                let hasContact = false;
+                contactFields.forEach(field => {
+                    if (field.value.trim() !== '') hasContact = true;
+                });
+
+                // Budowanie listy brakujących kryteriów
+                const missingCriteria = [];
+                if (!hasPhotos) missingCriteria.push("Wybrać przynajmniej jedno zdjęcie");
+                if (!hasName) missingCriteria.push("Wpisać imię lub nickname");
+                if (!hasContact) missingCriteria.push("Podać przynajmniej jedną formę kontaktu");
+
+                if (missingCriteria.length > 0) {
+                    submitFormBtn.disabled = true;
+                    if (validationContainer && validationList) {
+                        validationList.innerHTML = missingCriteria.map(item => `<li>${item}</li>`).join('');
+                        validationContainer.classList.remove('hidden');
+                    }
+                } else {
+                    submitFormBtn.disabled = false;
+                    if (validationContainer) {
+                        validationContainer.classList.add('hidden');
+                    }
+                }
+
+                // Ukryj stary komunikat, jeśli istnieje
+                if (selectionRequiredMsg) selectionRequiredMsg.classList.add('hidden');
+            }
+
+
+            function updateSelectedCount() {
+                const count = photos.filter(p => p.selected).length;
+                selectedCountElement.textContent = count;
+                validateFormAndToggleButton(); // Walidator sprawdza wszystko
+            }
+
+            function togglePhotoSelection(photoId) {
+                const photo = photos.find(p => p.id === photoId);
+                if (!photo) return;
+                photo.selected = !photo.selected;
+
+                const card = document.querySelector(`.photo-card[data-id='${photoId}']`);
+                if (card) {
+                    card.classList.toggle('selected-border', photo.selected);
+                    card.querySelector('.select-btn').classList.toggle('selected', photo.selected);
+                    const existingOverlay = card.querySelector('.selected-overlay');
+                    if (photo.selected && !existingOverlay) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'absolute inset-0 selected-overlay';
+                        card.appendChild(overlay);
+                    } else if (!photo.selected && existingOverlay) {
+                        card.removeChild(existingOverlay);
+                    }
+                }
+                if (currentPhotoIndex > -1 && photos[currentPhotoIndex].id === photoId) {
+                    lightbox.selectBtn.classList.toggle('selected', photo.selected);
+                }
+                updateSelectedCount();
+                renderSelectedThumbnails();
+            }
+
+            function renderGallery() {
+                gallery.innerHTML = '';
+                photos.forEach(photo => {
+                    const card = document.createElement('div');
+                    card.className = 'photo-card';
+                    if (photo.selected) card.classList.add('selected-border');
+                    card.dataset.id = photo.id;
+                    card.innerHTML = `
+                    <div class="status-icon"><i data-lucide="loader-circle" class="w-8 h-8 spinner"></i></div>
+                    <img data-src="${photo.thumbnail}" class="photo-card-img opacity-0" alt="Zdjęcie ${photo.filename}">
+                    <button class="select-btn ${photo.selected ? 'selected' : ''}" aria-label="Wybierz zdjęcie"><i data-lucide="check" class="pointer-events-none"></i></button>`;
+
+                    if (photo.selected) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'absolute inset-0 selected-overlay';
+                        card.appendChild(overlay);
+                    }
+                    gallery.appendChild(card);
+                });
+                lucide.createIcons();
+                setupLazyDecryption();
+                updateSelectedCount();
+            }
+
+            function setupLazyDecryption() {
+                const observer = new IntersectionObserver((entries, obs) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const card = entry.target;
+                            const img = card.querySelector('img');
+                            const statusIcon = card.querySelector('.status-icon');
+                            obs.unobserve(card);
+
+                            decryptImage(img.dataset.src, decryptionKey)
+                                .then(objectUrl => {
+                                    img.src = objectUrl;
+                                    img.onload = () => {
+                                        img.classList.remove('opacity-0');
+                                        statusIcon.remove();
+                                    };
+                                })
+                                .catch(err => {
+                                    console.error(`Błąd odszyfrowywania miniaturki ${img.dataset.src}:`, err);
+                                    statusIcon.innerHTML = `<i data-lucide="shield-alert" class="w-8 h-8 text-red-500"></i>`;
+                                    lucide.createIcons();
+                                });
+                        }
+                    });
+                }, { rootMargin: "200px" });
+                document.querySelectorAll('.photo-card').forEach(card => observer.observe(card));
+            }
+
+            async function openLightbox(index) {
+                lightbox.element.style.display = 'flex';
+                document.addEventListener('keydown', handleKeydown);
+                await showPhotoInLightbox(index);
+            }
+
+            function closeLightbox() {
+                lightbox.element.style.display = 'none';
+                lightbox.img.src = '';
+                document.removeEventListener('keydown', handleKeydown);
+
+                if (currentPhotoIndex >= 0 && photos[currentPhotoIndex]) {
+                    const lastViewedPhotoId = photos[currentPhotoIndex].id;
+                    const cardToScrollTo = document.querySelector(`.photo-card[data-id='${lastViewedPhotoId}']`);
+                    if (cardToScrollTo) {
+                        cardToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+
+            function preloadLightboxImages(currentIndex) {
+                if (photos.length <= 1) return;
+
+                const indexesToPreload = [
+                    (currentIndex - 1 + photos.length) % photos.length, // 1 wstecz
+                    (currentIndex + 1) % photos.length,                 // 1 w przód
+                    (currentIndex + 2) % photos.length                  // 2 w przód
+                ];
+
+                const uniqueIndexes = [...new Set(indexesToPreload)];
+
+                uniqueIndexes.forEach(idx => {
+                    if (idx !== currentIndex) {
+                        decryptImage(photos[idx].full, decryptionKey)
+                            .catch(err => console.warn(`Błąd preloadingu zdjęcia indeks ${idx}:`, err));
+                    }
+                });
+            }
+
+            async function showPhotoInLightbox(index) {
+                if (index < 0 || index >= photos.length) return;
+                currentPhotoIndex = index;
+                const photo = photos[index];
+
+                lightbox.img.src = '';
+                lightbox.img.classList.add('hidden');
+                lightbox.loader.classList.remove('hidden');
+                lucide.createIcons();
+
+                lightbox.selectBtn.classList.toggle('selected', photo.selected);
+                lightbox.counter.textContent = `Zdjęcie ${index + 1} z ${photos.length}`;
+
+                preloadLightboxImages(index);
+
+                try {
+                    const objectUrl = await decryptImage(photo.full, decryptionKey);
+                    if (currentPhotoIndex === index) {
+                        lightbox.img.src = objectUrl;
+                        lightbox.img.classList.remove('hidden');
+                        lightbox.loader.classList.add('hidden');
+                    }
+                } catch (error) {
+                    console.error("Błąd odszyfrowywania pełnego obrazu:", error);
+                    if (currentPhotoIndex === index) {
+                        lightbox.loader.classList.add('hidden');
+                    }
+                }
+            }
+
+            function showNextPhoto() { if (photos.length > 0) showPhotoInLightbox((currentPhotoIndex + 1) % photos.length); }
+            function showPrevPhoto() { if (photos.length > 0) showPhotoInLightbox((currentPhotoIndex - 1 + photos.length) % photos.length); }
+            function handleKeydown(e) {
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowRight') showNextPhoto();
+                if (e.key === 'ArrowLeft') showPrevPhoto();
+            }
+
+            async function startApplication(keyString) {
+                try {
+                    decryptionKey = await importKey(keyString);
+                    passwordModal.error.textContent = '';
+                    passwordModal.element.classList.add('hidden');
+                    appContent.classList.remove('hidden');
+                } catch (error) {
+                    passwordModal.input.value = '';
+                    passwordModal.error.textContent = 'Nieprawidłowy klucz. Spróbuj ponownie.';
+                    return;
+                }
+
+                await loadConfig();
+
+                try {
+                    const response = await fetch(`api/list_files.php?s=${albumSlug}`);
+                    if (response.status === 403) { window.location.href = 'login.php'; return; }
+                    if (!response.ok) throw new Error('Nie można załadować listy zdjęć.');
+
+                    const filenames = await response.json();
+                    if (!Array.isArray(filenames) || filenames.length === 0) throw new Error('Galeria jest pusta lub lista plików jest nieprawidłowa.');
+
+                    photos = filenames.map((file, index) => ({
+                        id: index + 1, filename: file,
+                        thumbnail: `api/serve_image.php?type=thumb&file=${encodeURIComponent(file)}`,
+                        full: `api/serve_image.php?type=full&file=${encodeURIComponent(file)}`,
+                        selected: false
+                    }));
+
+                    renderGallery();
+                    validateFormAndToggleButton(); // Ustaw stan początkowy przycisku
+
+                    // ZMIANA: Trwale ukryj stary komunikat
+                    if (selectionRequiredMsg) selectionRequiredMsg.style.display = "none";
+
+                    if (window.innerWidth < 768 && mainLayoutControls) {
+                        mainLayoutControls.querySelector('.active')?.classList.remove('active');
+                        mainLayoutControls.querySelector('[data-cols="2"]')?.classList.add('active');
+                    } else if (mainLayoutControls) {
+                        mainLayoutControls.querySelector('.active')?.classList.remove('active');
+                        mainLayoutControls.querySelector('[data-cols="4"]')?.classList.add('active');
+                    }
+
+                } catch (error) {
+                    gallery.innerHTML = `<p class="col-span-full text-center text-gray-400">${error.message}</p>`;
+                }
+            }
+
+            function handleFloatingButtonVisibility() {
+                if (!scrollToFormBtn || !submissionFormSection) return;
+                const rect = submissionFormSection.getBoundingClientRect();
+                const isFormVisible = (rect.top < window.innerHeight) && (rect.bottom >= 0);
+                if (!isFormVisible && window.scrollY > 300) {
+                    scrollToFormBtn.classList.add('visible');
+                } else {
+                    scrollToFormBtn.classList.remove('visible');
+                }
+            }
+
+            function initializeEventListeners() {
+                passwordModal.form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const key = passwordModal.input.value.trim();
+                    if (key) startApplication(key);
+                });
+
+                closeInstructionsBtn.addEventListener('click', () => {
+                    instructions.style.opacity = '0';
+                    setTimeout(() => instructions.classList.add('hidden'), 300);
+                });
+
+                document.addEventListener('click', (e) => {
+                    const layoutBtn = e.target.closest('.layout-btn');
+                    if (!layoutBtn) return;
+
+                    const controlsGroup = layoutBtn.closest('.layout-controls-group');
+                    if (!controlsGroup) return;
+
+                    controlsGroup.querySelector('.active')?.classList.remove('active');
+                    layoutBtn.classList.add('active');
+
+                    const cols = layoutBtn.dataset.cols;
+                    if (controlsGroup.id === 'main-layout-controls') {
+                        gallery.className = `grid grid-cols-${cols} gap-2 md:gap-4`;
+                    } else if (controlsGroup.id === 'selection-layout-controls') {
+                        selectedThumbnailsGrid.className = `grid grid-cols-${cols} gap-2 transition-all duration-300`;
+                    }
+                });
+
+                gallery.addEventListener('click', (e) => {
+                    const button = e.target.closest('.select-btn');
+                    if (button) {
+                        e.stopPropagation();
+                        togglePhotoSelection(parseInt(button.closest('.photo-card').dataset.id, 10));
+                        return;
+                    }
+                    const card = e.target.closest('.photo-card');
+                    if (card) {
+                        const photoIndex = photos.findIndex(p => p.id === parseInt(card.dataset.id, 10));
+                        if (photoIndex !== -1) openLightbox(photoIndex);
+                    }
+                });
+
+                if (selectedThumbnailsGrid) {
+                    selectedThumbnailsGrid.addEventListener('click', (e) => {
+                        const thumbCard = e.target.closest('.selected-thumb-card');
+                        if (thumbCard && thumbCard.dataset.id) {
+                            const photoId = parseInt(thumbCard.dataset.id, 10);
+                            if (photoId) {
+                                confirmationModal.photoIdToDelete = photoId;
+                                confirmationModal.element.classList.remove('hidden');
+                            }
+                        }
+                    });
+                }
+
+                confirmationModal.cancelBtn.addEventListener('click', () => {
+                    confirmationModal.element.classList.add('hidden');
+                    confirmationModal.photoIdToDelete = null;
+                });
+
+                confirmationModal.deleteBtn.addEventListener('click', () => {
+                    if (confirmationModal.photoIdToDelete !== null) {
+                        togglePhotoSelection(confirmationModal.photoIdToDelete);
+                        confirmationModal.element.classList.add('hidden');
+                        confirmationModal.photoIdToDelete = null;
+                    }
+                });
+
+                confirmationModal.element.addEventListener('click', (e) => {
+                    if (e.target === confirmationModal.element) {
+                        confirmationModal.element.classList.add('hidden');
+                        confirmationModal.photoIdToDelete = null;
+                    }
+                });
+
+                const clientNameInput = document.getElementById('client-name');
+                if (clientNameInput) {
+                    clientNameInput.addEventListener('input', validateFormAndToggleButton);
+                }
+
+                const contactFields = userDetailsForm.querySelectorAll('.contact-field');
+                contactFields.forEach(field => {
+                    field.addEventListener('input', () => {
+                        let isAnyContactFilled = false;
+                        contactFields.forEach(f => {
+                            if (f.value.trim() !== '') isAnyContactFilled = true;
+                        });
+
+                        if (isAnyContactFilled) {
+                            contactRequiredMsg.classList.add('hidden');
+                        }
+
+                        validateFormAndToggleButton();
+                    });
+                });
+
+                userDetailsForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+
+                    const contactFields = userDetailsForm.querySelectorAll('.contact-field');
+                    let isAnyContactFilled = false;
+                    contactFields.forEach(field => {
+                        if (field.value.trim() !== '') isAnyContactFilled = true;
+                    });
+
+                    if (!isAnyContactFilled) {
+                        contactRequiredMsg.classList.remove('hidden');
+                        contactRequiredMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    } else {
+                        contactRequiredMsg.classList.add('hidden');
+                    }
+
+                    if (!userDetailsForm.checkValidity()) {
+                        userDetailsForm.reportValidity();
+                        return;
+                    }
+                    const clientData = Object.fromEntries(new FormData(e.target).entries());
+                    handleSaveSelection(clientData);
+                });
+
+                resultsModal.closeBtn.addEventListener('click', () => resultsModal.element.classList.add('hidden'));
+
+                resultsModal.copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(resultsModal.list.value).then(() => {
+                        resultsModal.copyBtn.textContent = 'Skopiowano!';
+                        setTimeout(() => { resultsModal.copyBtn.textContent = 'Skopiuj do schowka'; }, 2000);
+                    }).catch(err => {
+                        console.error('Błąd kopiowania:', err);
+                        resultsModal.copyBtn.textContent = 'Błąd kopiowania';
+                    });
+                });
+
+                lightbox.closeBtn.addEventListener('click', closeLightbox);
+                lightbox.element.addEventListener('click', (e) => { if (e.target === lightbox.element) closeLightbox(); });
+                lightbox.nextBtn.addEventListener('click', showNextPhoto);
+                lightbox.prevBtn.addEventListener('click', showPrevPhoto);
+                lightbox.selectBtn.addEventListener('click', () => {
+                    if (currentPhotoIndex !== -1) togglePhotoSelection(photos[currentPhotoIndex].id);
+                });
+
+                if (scrollToFormBtn && submissionFormSection) {
+                    scrollToFormBtn.addEventListener('click', () => {
+                        const header = document.querySelector('header');
+                        const offset = (header ? header.offsetHeight : 0) + 20;
+                        const elementPosition = submissionFormSection.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.scrollY - offset;
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: "smooth"
+                        });
+                    });
+                    window.addEventListener('scroll', handleFloatingButtonVisibility, { passive: true });
+                }
+            }
+
+            function initializeApp() {
+                lucide.createIcons();
+                initializeEventListeners();
+
+                const keyFromUrl = window.location.hash.substring(1);
+                if (keyFromUrl && keyFromUrl.length === 64) {
+                    startApplication(keyFromUrl);
+                }
+            }
+
+            initializeApp();
+        });
+    </script>
+</body>
+
+</html>
