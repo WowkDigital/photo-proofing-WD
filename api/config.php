@@ -14,7 +14,7 @@ define('ALBUM_TITLE', 'Wybór zdjęć do obrobienia');
 define('PASSWORD_PROTECTION_ENABLED', false);
 
 // Hasło do panelu administratora (admin/login.php)
-define('ADMIN_PASSWORD', 'admin123'); // Zmień na bezpieczne hasło!
+define('ADMIN_PASSWORD_HASH', '$2y$10$iG1uHbnb..19hsOckQZWHem2xsdF/6UaurRnlXamYr58I4PL2HmI2'); // Unbraided5-Uncivil-Unabashed
 
 // To hasło będzie używane tylko wtedy, gdy PASSWORD_PROTECTION_ENABLED jest `true`.
 define('GALLERY_PASSWORD', 'admin###');

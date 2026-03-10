@@ -1,8 +1,5 @@
-<?php
-/**
- * Kompleksowy skrypt inicjalizacji bazy danych
- * Tworzy wszystkie niezbędne tabele w jednej transakcji.
- */
+// api/init_db.php
+require_once '../admin/auth.php';
 require_once 'db.php';
 
 echo "Rozpoczynanie inicjalizacji bazy danych...\n";

@@ -1,5 +1,6 @@
 <?php
 // api/update_db_albums.php
+require_once '../admin/auth.php';
 require_once 'db.php';
 
 try {

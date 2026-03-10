@@ -10,7 +10,7 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['password']) && $_POST['password'] === ADMIN_PASSWORD) {
+    if (isset($_POST['password']) && password_verify($_POST['password'], ADMIN_PASSWORD_HASH)) {
         $_SESSION['admin_logged_in'] = true;
         header('Location: index.php');
         exit;

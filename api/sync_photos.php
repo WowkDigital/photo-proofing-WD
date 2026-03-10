@@ -1,14 +1,12 @@
 <?php
 // api/sync_photos.php
+require_once '../admin/auth.php';
 require_once 'db.php';
 require_once 'config.php';
 
 // Check auth (only admin can trigger sync via web, or CLI)
 if (php_sapi_name() !== 'cli') {
-    // Basic auth check if accessed via web
-    // assume Session started elsewhere if included, or standalone check
-    session_start();
-    if (!isset($_SESSION['is_logged_in']) || $_SESSION['is_logged_in'] !== true) {
+    if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
         die('Brak dostępu.');
     }
 }

@@ -1,5 +1,6 @@
 <?php
 // api/rebuild_db.php
+require_once '../admin/auth.php';
 require_once 'db.php';
 
 try {

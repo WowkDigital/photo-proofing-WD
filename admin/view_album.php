@@ -215,18 +215,18 @@ try {
                 }
 
                 let clientDetails = '';
-                if(sel.client_email) clientDetails += `<a href="mailto:${sel.client_email}" class="hover:text-cyan-400 transition-colors"><i data-lucide="mail" class="w-3.5 h-3.5 inline mr-1.5 text-gray-500"></i>${sel.client_email}</a>`;
-                if(sel.client_phone) clientDetails += `<a href="tel:${sel.client_phone}" class="hover:text-cyan-400 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 inline mr-1.5 text-gray-500"></i>${sel.client_phone}</a>`;
-                if(sel.client_telegram) clientDetails += `<span class="break-all"><i data-lucide="send" class="w-3.5 h-3.5 inline mr-1.5 text-blue-400"></i>${sel.client_telegram}</span>`;
-                if(sel.client_instagram) clientDetails += `<span class="break-all"><i data-lucide="instagram" class="w-3.5 h-3.5 inline mr-1.5 text-pink-500"></i>${sel.client_instagram}</span>`;
-                if(sel.client_facebook) clientDetails += `<span class="break-all"><i data-lucide="facebook" class="w-3.5 h-3.5 inline mr-1.5 text-blue-600"></i>${sel.client_facebook}</span>`;
+                if(sel.client_email) clientDetails += `<a href="mailto:${escapeHtml(sel.client_email)}" class="hover:text-cyan-400 transition-colors"><i data-lucide="mail" class="w-3.5 h-3.5 inline mr-1.5 text-gray-500"></i>${escapeHtml(sel.client_email)}</a>`;
+                if(sel.client_phone) clientDetails += `<a href="tel:${escapeHtml(sel.client_phone)}" class="hover:text-cyan-400 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 inline mr-1.5 text-gray-500"></i>${escapeHtml(sel.client_phone)}</a>`;
+                if(sel.client_telegram) clientDetails += `<span class="break-all"><i data-lucide="send" class="w-3.5 h-3.5 inline mr-1.5 text-blue-400"></i>${escapeHtml(sel.client_telegram)}</span>`;
+                if(sel.client_instagram) clientDetails += `<span class="break-all"><i data-lucide="instagram" class="w-3.5 h-3.5 inline mr-1.5 text-pink-500"></i>${escapeHtml(sel.client_instagram)}</span>`;
+                if(sel.client_facebook) clientDetails += `<span class="break-all"><i data-lucide="facebook" class="w-3.5 h-3.5 inline mr-1.5 text-blue-600"></i>${escapeHtml(sel.client_facebook)}</span>`;
                 
                 let notesHtml = '';
                 if (sel.client_notes) {
                     notesHtml = `
                     <div class="mt-4 pt-4 border-t border-[#3f3f6e]">
                         <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">Wiadomość / Notatki</p>
-                        <div class="p-3 bg-[#151525] rounded-xl border border-[#3f3f6e] text-sm text-gray-300 italic"><i data-lucide="message-square" class="w-4 h-4 inline mr-2 text-cyan-500/50"></i>"${sel.client_notes}"</div>
+                        <div class="p-3 bg-[#151525] rounded-xl border border-[#3f3f6e] text-sm text-gray-300 italic"><i data-lucide="message-square" class="w-4 h-4 inline mr-2 text-cyan-500/50"></i>"${escapeHtml(sel.client_notes)}"</div>
                     </div>`;
                 }
 
@@ -241,7 +241,7 @@ try {
                             <div>
                                 <h3 class="text-xl font-bold text-white mb-1 tracking-tight flex items-center">
                                     <span class="bg-cyan-500/20 text-cyan-400 p-1.5 rounded-lg mr-3 shadow-inner"><i data-lucide="user" class="w-5 h-5"></i></span>
-                                    ${sel.client_name}
+                                    ${escapeHtml(sel.client_name)}
                                 </h3>
                                 <p class="text-[11px] font-semibold text-gray-500 mb-6 flex items-center ml-11"><i data-lucide="calendar" class="w-3.5 h-3.5 mr-1.5"></i> Dokonano wyboru: ${dateStr}</p>
                                 

@@ -8,7 +8,7 @@ if (strpos($_SERVER['REQUEST_URI'], '/admin') !== false && strpos($_SERVER['REQU
 session_start();
 require_once '../api/config.php';
 
-if (!defined('ADMIN_PASSWORD')) {
+if (!defined('ADMIN_PASSWORD_HASH')) {
     die("Brak zdefiniowanego hasła administratora w config.php");
 }
 

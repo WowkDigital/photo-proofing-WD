@@ -45,7 +45,7 @@ Aplikacja została zbudowana w architekturze klient-serwer z wykorzystaniem nast
 ### Konfiguracja (`api/config.php`):
 - `ALBUM_TITLE`: Tytuł widoczny na górze strony.
 - `PASSWORD_PROTECTION_ENABLED`: Włączenie/wyłączenie wymagania hasła dla klienta.
-- `ADMIN_PASSWORD`: Hasło do panelu administratora.
+- `ADMIN_PASSWORD_HASH`: Zahashowane hasło do panelu administratora.
 - `CONTACT_*`: Linki do mediów społecznościowych i komunikatorów fotografa.
 
 ## 5. Baza Danych (Schema)
@@ -59,7 +59,7 @@ System korzysta z czterech głównych tabel:
 1. Skopiuj pliki na serwer z obsługą PHP 7.4+.
 2. Upewnij się, że katalogi `/data`, `/photos` oraz `/selection_logs` mają uprawnienia do zapisu dla serwera WWW.
 3. Uruchom skrypt `api/init_db.php` (np. przez przeglądarkę lub terminal PHP), aby utworzyć strukturę bazy danych.
-4. Skonfiguruj hasło administratora w `api/config.php`.
+4. Skonfiguruj zahashowane hasło administratora w `api/config.php`.
 5. Zaloguj się do panelu `/admin`, by wgrać pierwsze zdjęcia.
 
 ---
