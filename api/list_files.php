@@ -22,9 +22,9 @@ try {
     }
 
     // Pobierz pliki tylko dla tego albumu, sortując po oryginalnej nazwie
-    $stmt = $pdo->prepare("SELECT filename FROM photos WHERE album_id = ? ORDER BY original_filename ASC");
+    $stmt = $pdo->prepare("SELECT filename, original_filename FROM photos WHERE album_id = ? ORDER BY original_filename ASC");
     $stmt->execute([$albumId]);
-    $files = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
     header('Content-Type: application/json');

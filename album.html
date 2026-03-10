@@ -827,6 +827,7 @@
                 const selectedPhotos = photos.filter(p => p.selected);
                 if (selectedPhotos.length === 0) return;
                 const filenames = selectedPhotos.map(p => p.filename);
+                const originalNames = selectedPhotos.map(p => p.original_filename || p.filename);
 
                 let clipboardText = `Dane Klienta:\n`;
                 if (clientData.name) clipboardText += `Imię: ${clientData.name}\n`;
@@ -836,7 +837,7 @@
                 if (clientData.telegram) clipboardText += `Telegram: ${clientData.telegram}\n`;
                 if (clientData.facebook) clipboardText += `Facebook: ${clientData.facebook}\n`;
                 if (clientData.notes) clipboardText += `Notatki: ${clientData.notes}\n`;
-                clipboardText += `\nWybrane pliki (${filenames.length}):\n${filenames.join('\n')}`;
+                clipboardText += `\nWybrane zdjęcia (${originalNames.length}):\n${originalNames.join('\n')}`;
 
                 resultsModal.list.value = clipboardText;
                 resultsModal.element.classList.remove('hidden');
@@ -917,14 +918,15 @@
                 selectedPhotos.forEach(photo => {
                     const thumbCard = document.createElement('div');
                     thumbCard.className = 'selected-thumb-card';
-                    thumbCard.title = `Kliknij, aby usunąć z zaznaczenia: ${photo.filename}`;
+                    const displayName = photo.original_filename || photo.filename;
+                    thumbCard.title = `Kliknij, aby usunąć z zaznaczenia: ${displayName}`;
                     thumbCard.dataset.id = photo.id;
 
                     const decryptedUrl = decryptedCache.get(photo.thumbnail);
 
                     if (decryptedUrl) {
                         thumbCard.innerHTML = `
-                        <img src="${decryptedUrl}" alt="Miniaturka ${photo.filename}">
+                        <img src="${decryptedUrl}" alt="Miniaturka ${displayName}">
                         <div class="overlay">
                             <i data-lucide="trash-2"></i>
                         </div>
@@ -1164,13 +1166,15 @@
                     if (response.status === 403) { window.location.href = 'login.php'; return; }
                     if (!response.ok) throw new Error('Nie można załadować listy zdjęć.');
 
-                    const filenames = await response.json();
-                    if (!Array.isArray(filenames) || filenames.length === 0) throw new Error('Galeria jest pusta lub lista plików jest nieprawidłowa.');
+                    const fileData = await response.json();
+                    if (!Array.isArray(fileData) || fileData.length === 0) throw new Error('Galeria jest pusta lub lista plików jest nieprawidłowa.');
 
-                    photos = filenames.map((file, index) => ({
-                        id: index + 1, filename: file,
-                        thumbnail: `api/serve_image.php?type=thumb&file=${encodeURIComponent(file)}`,
-                        full: `api/serve_image.php?type=full&file=${encodeURIComponent(file)}`,
+                    photos = fileData.map((data, index) => ({
+                        id: index + 1, 
+                        filename: data.filename,
+                        original_filename: data.original_filename,
+                        thumbnail: `api/serve_image.php?type=thumb&file=${encodeURIComponent(data.filename)}`,
+                        full: `api/serve_image.php?type=full&file=${encodeURIComponent(data.filename)}`,
                         selected: false
                     }));
 
