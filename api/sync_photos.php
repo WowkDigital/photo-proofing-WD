@@ -41,4 +41,3 @@ try {
     $pdo->rollBack();
     echo "Błąd synchronizacji: " . $e->getMessage();
 }
-?>

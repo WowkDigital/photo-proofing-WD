@@ -68,4 +68,3 @@ try {
     }
     die("\nBŁĄD INICJALIZACJI: " . $e->getMessage() . "\n");
 }
-?>

@@ -41,4 +41,3 @@ try {
 } catch (PDOException $e) {
     die("Błąd inicjalizacji bazy: " . $e->getMessage());
 }
-?>

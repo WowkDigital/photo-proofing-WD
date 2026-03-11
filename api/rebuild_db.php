@@ -66,4 +66,3 @@ try {
 } catch (PDOException $e) {
     die("Błąd resetowania bazy: " . $e->getMessage());
 }
-?>

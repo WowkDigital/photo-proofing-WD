@@ -45,4 +45,3 @@ try {
 } catch (PDOException $e) {
     die("Błąd aktualizacji bazy: " . $e->getMessage());
 }
-?>

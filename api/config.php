@@ -31,5 +31,3 @@ define('CONTACT_SIGNAL', 'https://signal.me/#eu/m1_mIKa_RlVvrUuDje_yvykzJ7AvG6rN
 define('CONTACT_WHATSAPP', 'https://wa.me/48664433505');
 // Zostawiam link do Instagrama, na wypadek gdyby był potrzebny.
 define('CONTACT_INSTAGRAM', 'https://www.instagram.com/wowkdigital/');
-
-?>

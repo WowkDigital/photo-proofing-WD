@@ -11,4 +11,3 @@ try {
     // W środowisku produkcyjnym nie należy pokazywać dokładnego błędu użytkownikowi
     die("Błąd połączenia z bazą danych.");
 }
-?>
