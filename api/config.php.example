@@ -1,0 +1,33 @@
+<?php
+/**
+ * Configuration Example File for photo-proofing-WD
+ * Rename this file to config.php and fill in your details.
+ */
+
+// ------------------------------------------------------------------
+// MAIN GALLERY SETTINGS
+// ------------------------------------------------------------------
+
+// Set the title visible in the album header.
+define('ALBUM_TITLE', 'Photo Selection Gallery');
+
+// Set to `true` to enable password protection for the gallery.
+define('PASSWORD_PROTECTION_ENABLED', false);
+
+// Admin panel password hash (admin/login.php)
+// Use password_hash('your-password', PASSWORD_DEFAULT) to generate a new hash.
+define('ADMIN_PASSWORD_HASH', '$2y$10$YourGeneratedHashHere'); 
+
+// This password will be used only when PASSWORD_PROTECTION_ENABLED is `true`.
+define('GALLERY_PASSWORD', 'change-me');
+
+
+// ------------------------------------------------------------------
+// CONTACT LINKS
+// ------------------------------------------------------------------
+// Fill in the links that will appear in the contact section.
+define('CONTACT_TELEGRAM', 'https://t.me/yourusername');
+define('CONTACT_FACEBOOK', 'https://www.facebook.com/yourprofile');
+define('CONTACT_SIGNAL', 'https://signal.me/#eu/yourlink');
+define('CONTACT_WHATSAPP', 'https://wa.me/yourphonenumber');
+define('CONTACT_INSTAGRAM', 'https://www.instagram.com/yourprofile/');

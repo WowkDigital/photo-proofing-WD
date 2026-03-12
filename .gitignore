@@ -3,3 +3,5 @@ data/database.sqlite
 selection_logs/
 .DS_Store
 *.log
+api/config.php
+.env
