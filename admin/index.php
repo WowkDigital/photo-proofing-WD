@@ -448,7 +448,7 @@ try {
                     const icon = card.querySelector('.album-cover i');
                     try {
                         const key = await CryptoHelper.importKeyFromHex(hex);
-                        const res = await fetch(`../photos/thumbnails/${coverFilename}`);
+                        const res = await fetch(`../api/serve_image.php?type=thumb&file=${encodeURIComponent(coverFilename)}`);
                         if (res.ok) {
                             const decryptedBuffer = await CryptoHelper.decrypt(await res.arrayBuffer(), key);
                             const blob = new Blob([decryptedBuffer], { type: 'image/jpeg' });
