@@ -23,11 +23,12 @@ A professional, lightweight photo proofing system designed for photographers by 
 
 ## 🚀 Quick Setup
 
-1. **Deploy**: Upload files to your web server.
-2. **Permissions**: Ensure `/data`, `/photos`, and `/selection_logs` are writable by the web server.
-3. **Database**: Run `api/init_db.php` in your browser to initialize the SQLite structure.
-4. **Configure**: Rename `api/config.php.example` to `api/config.php` and set your admin password and gallery titles.
-5. **Go Live**: Log in to `/admin` and start uploading your first session!
+1. **Clone & Upload**: Clone the repository or upload the files to your PHP server (PHP 7.4+).
+2. **Permissions**: Ensure `/data`, `/photos`, and `/selection_logs` folders are writable.
+3. **Run Installer**: Open `yourdomain.com/install.php` in your browser.
+4. **Configure**: Follow the easy steps to set your title, admin password, and contact links.
+5. **Secure**: Once done, delete `install.php` from your server for security.
+6. **Go Live**: Log in to `/admin` and start uploading your first session!
 
 ---
 *Created by [WowkDigital](https://github.com/WowkDigital)*
