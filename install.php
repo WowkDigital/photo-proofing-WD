@@ -108,6 +108,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
     }
 }
 
+// Create directories if they don't exist
+$dirsToCreate = [$dbDir, $photosDir, $logsDir, __DIR__ . '/api'];
+foreach ($dirsToCreate as $dir) {
+    if (!file_exists($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+}
+
 // Permission Checks
 $permissions = [
     'data' => is_writable($dbDir),
