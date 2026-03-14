@@ -1190,11 +1190,11 @@
                         return { ...data, original_filename_decrypted: originalName };
                     }));
 
-                    // Sortowanie plików na frontendzie alfabetycznie po odszyfrowaniu
+                    // Sortowanie plików na frontendzie alfabetycznie po odszyfrowaniu (naturalne sortowanie numeryczne)
                     decryptedData.sort((a, b) => {
                         const nameA = a.original_filename_decrypted || a.filename;
                         const nameB = b.original_filename_decrypted || b.filename;
-                        return nameA.localeCompare(nameB);
+                        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
                     });
 
                     photos = decryptedData.map((data, index) => ({

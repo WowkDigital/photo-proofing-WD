@@ -209,7 +209,7 @@ try {
                 if (key) {
                     try {
                         decryptedNames = await Promise.all(sel.photos.map(p => CryptoHelper.decryptString(p, key)));
-                        decryptedNames.sort((a, b) => a.localeCompare(b));
+                        decryptedNames.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
                         isDecrypted = true;
                     } catch(e) {}
                 }
