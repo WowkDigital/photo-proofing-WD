@@ -25,9 +25,9 @@ try {
 
     $selectionsData = [];
     foreach ($selections as $sel) {
-        $stmtPhotos = $pdo->prepare("SELECT p.original_filename FROM selected_photos sp JOIN photos p ON sp.photo_filename = p.filename WHERE sp.selection_id = ?");
+        $stmtPhotos = $pdo->prepare("SELECT p.filename, p.original_filename FROM selected_photos sp JOIN photos p ON sp.photo_filename = p.filename WHERE sp.selection_id = ?");
         $stmtPhotos->execute([$sel['id']]);
-        $sel['photos'] = $stmtPhotos->fetchAll(PDO::FETCH_COLUMN);
+        $sel['photos_data'] = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
         $selectionsData[] = $sel;
     }
 } catch (PDOException $e) {
@@ -111,6 +111,32 @@ try {
         </main>
     </div>
 
+    <!-- Modal dla pełnej rozdzielczości -->
+    <div id="full-image-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 md:p-12 bg-black/95 backdrop-blur-md">
+        <button id="close-modal-btn" class="absolute top-6 right-6 text-white/50 hover:text-white transition-all p-2 hover:rotate-90 z-50">
+            <i data-lucide="x" class="w-10 h-10"></i>
+        </button>
+        
+        <!-- Przyciski nawigacji -->
+        <button id="prev-modal-btn" class="absolute left-6 top-1/2 -translate-y-1/2 text-white/30 hover:text-white hover:bg-white/10 p-4 rounded-full transition-all z-50">
+            <i data-lucide="chevron-left" class="w-12 h-12"></i>
+        </button>
+        <button id="next-modal-btn" class="absolute right-6 top-1/2 -translate-y-1/2 text-white/30 hover:text-white hover:bg-white/10 p-4 rounded-full transition-all z-50">
+            <i data-lucide="chevron-right" class="w-12 h-12"></i>
+        </button>
+
+        <div id="modal-loader" class="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+            <div class="flex flex-col items-center gap-4">
+                <i data-lucide="loader-2" class="w-12 h-12 animate-spin text-cyan-500"></i>
+                <p class="text-cyan-500 font-mono text-xs uppercase tracking-widest">Deszyfrowanie oryginału...</p>
+            </div>
+        </div>
+        <img id="full-resolution-img" src="" alt="" class="max-w-full max-h-full object-contain shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-sm opacity-0 transition-all duration-500 scale-95 z-30">
+        
+        <!-- Licznik / Nazwa -->
+        <div id="modal-info" class="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 font-mono text-xs bg-black/40 px-4 py-2 rounded-full backdrop-blur z-50"></div>
+    </div>
+
     <script>
         lucide.createIcons();
         
@@ -147,6 +173,22 @@ try {
                     return base64str; // Fallback do bazy (np. do zaszyfrowanej nazwy nie base64)
                 }
             },
+            async decryptImage(url, key) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const encryptedData = await response.arrayBuffer();
+                    if (encryptedData.byteLength < 28) throw new Error("Plik jest uszkodzony.");
+                    const iv = encryptedData.slice(0, 12);
+                    const ciphertext = encryptedData.slice(12);
+                    const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+                    const blob = new Blob([decryptedBuffer], { type: "image/jpeg" });
+                    return URL.createObjectURL(blob);
+                } catch (e) {
+                    console.error("Błąd dekodowania obrazu:", e);
+                    return null;
+                }
+            },
             async sha256(hex) {
                 const msgBuffer = new TextEncoder().encode(hex.trim());
                 const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
@@ -154,6 +196,102 @@ try {
                 return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             }
         };
+
+        const UI = {
+            modal: document.getElementById('full-image-modal'),
+            modalImg: document.getElementById('full-resolution-img'),
+            modalLoader: document.getElementById('modal-loader'),
+            modalInfo: document.getElementById('modal-info'),
+            closeModalBtn: document.getElementById('close-modal-btn'),
+            prevBtn: document.getElementById('prev-modal-btn'),
+            nextBtn: document.getElementById('next-modal-btn'),
+            
+            currentPhotos: [],
+            currentIndex: -1,
+            activeKeyHex: null,
+
+            async showFullImage(index, photos, keyHex) {
+                this.currentPhotos = photos;
+                this.currentIndex = index;
+                this.activeKeyHex = keyHex;
+                
+                if(!this.activeKeyHex || this.currentIndex === -1) return;
+                
+                this.modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                this.updateImage();
+            },
+
+            async updateImage() {
+                const photo = this.currentPhotos[this.currentIndex];
+                if(!photo) return;
+
+                this.modalImg.classList.add('opacity-0', 'scale-95');
+                this.modalLoader.classList.remove('hidden');
+                this.modalInfo.textContent = `${this.currentIndex + 1} / ${this.currentPhotos.length} — ${photo.original_filename_dec}`;
+                
+                try {
+                    const key = await CryptoHelper.importKeyFromHex(this.activeKeyHex);
+                    const url = `../photos/${photo.filename}`;
+                    const blobUrl = await CryptoHelper.decryptImage(url, key);
+                    
+                    if (blobUrl) {
+                        if(this.modalImg.src.startsWith('blob:')) URL.revokeObjectURL(this.modalImg.src);
+                        this.modalImg.src = blobUrl;
+                        this.modalImg.onload = () => {
+                            this.modalImg.classList.remove('opacity-0', 'scale-95');
+                            this.modalImg.classList.add('scale-100');
+                            this.modalLoader.classList.add('hidden');
+                        };
+                    }
+                } catch(e) {
+                    console.error("Błąd ładowania obrazu:", e);
+                }
+            },
+
+            next() {
+                if (this.currentIndex < this.currentPhotos.length - 1) {
+                    this.currentIndex++;
+                    this.updateImage();
+                } else {
+                    this.currentIndex = 0; // Loop or stay
+                    this.updateImage();
+                }
+            },
+
+            prev() {
+                if (this.currentIndex > 0) {
+                    this.currentIndex--;
+                    this.updateImage();
+                } else {
+                    this.currentIndex = this.currentPhotos.length - 1; // Loop
+                    this.updateImage();
+                }
+            },
+
+            closeModal() {
+                this.modal.classList.add('hidden');
+                document.body.style.overflow = '';
+                if(this.modalImg.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(this.modalImg.src);
+                }
+                this.modalImg.src = '';
+                this.currentPhotos = [];
+                this.currentIndex = -1;
+            }
+        };
+
+        UI.closeModalBtn.addEventListener('click', () => UI.closeModal());
+        UI.prevBtn.addEventListener('click', (e) => { e.stopPropagation(); UI.prev(); });
+        UI.nextBtn.addEventListener('click', (e) => { e.stopPropagation(); UI.next(); });
+        UI.modal.addEventListener('click', (e) => { if(e.target === UI.modal) UI.closeModal(); });
+        
+        window.addEventListener('keydown', (e) => { 
+            if(UI.modal.classList.contains('hidden')) return;
+            if(e.key === 'Escape') UI.closeModal(); 
+            if(e.key === 'ArrowRight') UI.next();
+            if(e.key === 'ArrowLeft') UI.prev();
+        });
 
         const VAULT = {
             keys: JSON.parse(sessionStorage.getItem('admin_vault_keys') || '{}'),
@@ -203,16 +341,26 @@ try {
             }
 
             for (const sel of selectionsData) {
-                let decryptedNames = [...sel.photos];
+                let decryptedNames = [];
                 let isDecrypted = false;
                 
                 if (key) {
                     try {
-                        decryptedNames = await Promise.all(sel.photos.map(p => CryptoHelper.decryptString(p, key)));
-                        decryptedNames.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                        decryptedNames = await Promise.all(sel.photos_data.map(async p => {
+                            const name = await CryptoHelper.decryptString(p.original_filename, key);
+                            return { ...p, original_filename_dec: name };
+                        }));
+                        decryptedNames.sort((a, b) => a.original_filename_dec.localeCompare(b.original_filename_dec, undefined, { numeric: true, sensitivity: 'base' }));
                         isDecrypted = true;
-                    } catch(e) {}
+                    } catch(e) {
+                        console.error('Błąd dekrypcji nazw:', e);
+                        decryptedNames = sel.photos_data.map(p => ({ ...p, original_filename_dec: p.original_filename }));
+                    }
+                } else {
+                    decryptedNames = sel.photos_data.map(p => ({ ...p, original_filename_dec: p.original_filename }));
                 }
+
+                const fileNamesOnly = decryptedNames.map(p => p.original_filename_dec).join('\n');
 
                 let clientDetails = '';
                 if(sel.client_email) clientDetails += `<a href="mailto:${escapeHtml(sel.client_email)}" class="hover:text-cyan-400 transition-colors"><i data-lucide="mail" class="w-3.5 h-3.5 inline mr-1.5 text-gray-500"></i>${escapeHtml(sel.client_email)}</a>`;
@@ -232,10 +380,10 @@ try {
 
                 const dateObj = new Date(sel.selection_date);
                 const dateStr = dateObj.toLocaleDateString('pl-PL') + ' o ' + dateObj.toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'});
-                const fileListText = decryptedNames.join('\n');
 
+                const cardId = `sel-card-${sel.id}`;
                 const cardHtml = `
-                    <div class="bg-[#2c2c54] rounded-2xl border border-[#3f3f6e] shadow-xl overflow-hidden flex flex-col lg:flex-row group transition-all hover:border-[#4f4f8a]">
+                    <div id="${cardId}" class="bg-[#2c2c54] rounded-2xl border border-[#3f3f6e] shadow-xl overflow-hidden flex flex-col lg:flex-row group transition-all hover:border-[#4f4f8a]">
                         <!-- Lewy panel - Wizytówka -->
                         <div class="p-6 lg:w-[35%] border-b lg:border-b-0 lg:border-r border-[#3f3f6e] bg-[#232342]/70 flex flex-col justify-between relative">
                             <div>
@@ -253,26 +401,72 @@ try {
                             ${notesHtml}
                         </div>
 
-                        <!-- Prawy panel - Raport -->
-                        <div class="p-6 lg:w-[65%] flex flex-col">
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                        <!-- Prawy panel - Raport i Miniaturki -->
+                        <div class="p-6 lg:w-[65%] flex flex-col gap-6">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                 <h4 class="text-sm font-bold text-gray-300 uppercase tracking-widest flex items-center">
-                                    <i data-lucide="images" class="w-4 h-4 mr-2 text-blue-400"></i> ${sel.photos.length} wybranych kadrów
+                                    <i data-lucide="images" class="w-4 h-4 mr-2 text-blue-400"></i> ${sel.photos_data.length} wybranych kadrów
                                 </h4>
-                                <button onclick="copyToClipboard(this)" data-clipboard="${escapeHtml(fileListText)}" class="bg-[#3f3f6e] hover:bg-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center shadow shadow-black/20 hover:shadow-cyan-500/20 active:scale-95 border border-[#4f4f8a] hover:border-cyan-400">
+                                <button onclick="copyToClipboard(this)" data-clipboard="${escapeHtml(fileNamesOnly)}" class="bg-[#3f3f6e] hover:bg-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center shadow shadow-black/20 hover:shadow-cyan-500/20 active:scale-95 border border-[#4f4f8a] hover:border-cyan-400">
                                     <i data-lucide="copy" class="w-3 h-3 mr-2"></i> Skopiuj Listę dla Lightrooma
                                 </button>
                             </div>
+
+                            <!-- Grid miniatur -->
+                            <div class="thumbnails-grid grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-4 p-3 bg-[#151525] rounded-xl border border-[#3f3f6e]">
+                                ${decryptedNames.map((p, i) => `
+                                    <div class="aspect-square bg-[#1a1a2e] rounded-lg border border-[#3f3f6e] overflow-hidden relative group-thumb" title="${escapeHtml(p.original_filename_dec)}">
+                                        ${isDecrypted ? `
+                                            <div class="absolute inset-0 flex items-center justify-center opacity-30 thumb-loader">
+                                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-500"></i>
+                                            </div>
+                                            <button onclick="UI.showFullImage(${i}, ${JSON.stringify(decryptedNames).replace(/"/g, '&quot;')}, activeKeyHex)" class="w-full h-full block group/item">
+                                                <img data-filename="${p.filename}" class="w-full h-full object-cover opacity-0 transition-all duration-300 group-hover/item:scale-110" alt="">
+                                                <div class="absolute inset-0 bg-cyan-500/0 group-hover/item:bg-cyan-500/20 transition-all flex items-center justify-center">
+                                                    <i data-lucide="maximize-2" class="w-5 h-5 text-white opacity-0 group-hover/item:opacity-100 scale-50 group-hover/item:scale-100 transition-all"></i>
+                                                </div>
+                                            </button>
+                                        ` : `
+                                            <div class="absolute inset-0 bg-[#000]/40 flex items-center justify-center">
+                                                <i data-lucide="lock" class="w-4 h-4 text-gray-600"></i>
+                                            </div>
+                                        `}
+                                    </div>
+                                `).join('')}
+                            </div>
                             
                             <div class="relative flex-grow h-48 sm:h-auto group/textarea">
-                                <textarea readonly class="w-full h-full min-h-[14rem] bg-[#151525] border border-[#3f3f6e] rounded-xl p-4 text-sm font-mono focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all resize-y shadow-inner ${isDecrypted ? 'text-emerald-400 selection:bg-emerald-900/50' : 'text-gray-600 selection:bg-gray-800'} scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-${!isDecrypted ? '==================================================\n⚠️ UWAGA: ZERO-KNOWLEDGE ARCHITECTURE AKTYWNA\n==================================================\n\nAby odszyfrować nazwy wybranych plików wklej swój\nKlucz Dostępu (64 znaki) w panelu powyżej.\n\n==================================================\nZaszyfrowane ciągi:\n' : ''}${fileListText}</textarea>
+                                <textarea readonly class="w-full h-full min-h-[10rem] bg-[#151525] border border-[#3f3f6e] rounded-xl p-4 text-sm font-mono focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all resize-y shadow-inner ${isDecrypted ? 'text-emerald-400 selection:bg-emerald-900/50' : 'text-gray-600 selection:bg-gray-800'} scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+${!isDecrypted ? '==================================================\n⚠️ UWAGA: ZERO-KNOWLEDGE ARCHITECTURE AKTYWNA\n==================================================\n\nAby odszyfrować nazwy wybranych plików wklej swój\nKlucz Dostępu (64 znaki) w panelu powyżej.\n\n==================================================\nZaszyfrowane ciągi:\n' : ''}${fileNamesOnly}</textarea>
                                 ${!isDecrypted ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><i data-lucide="lock" class="w-16 h-16 text-gray-800 opacity-20"></i></div>' : ''}
                             </div>
                         </div>
                     </div>
                 `;
                 container.insertAdjacentHTML('beforeend', cardHtml);
+                
+                // Load thumbnails if key exists
+                if (key) {
+                    const cardEl = document.getElementById(cardId);
+                    const images = cardEl.querySelectorAll('img[data-filename]');
+                    
+                    images.forEach(async img => {
+                        const filename = img.dataset.filename;
+                        const url = `../photos/thumbnails/${filename}`;
+                        const blobUrl = await CryptoHelper.decryptImage(url, key);
+                        if (blobUrl) {
+                            img.src = blobUrl;
+                            img.onload = () => {
+                                img.classList.remove('opacity-0');
+                                img.previousElementSibling.remove(); // Remove loader
+                            };
+                        } else {
+                            // error loading thumb
+                            img.previousElementSibling.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>';
+                            lucide.createIcons();
+                        }
+                    });
+                }
             }
             lucide.createIcons();
         }
