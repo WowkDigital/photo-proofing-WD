@@ -25,8 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
     $password = $_POST['admin_password'] ?? '';
     $contactTelegram = $_POST['contact_telegram'] ?? '';
     $contactWhatsapp = $_POST['contact_whatsapp'] ?? '';
-    $contactFacebook = $_POST['contact_facebook'] ?? '';
-    $contactInstagram = $_POST['contact_instagram'] ?? '';
+    $contactFacebook = !empty($_POST['contact_facebook']) ? $_POST['contact_facebook'] : '#';
+    $contactInstagram = !empty($_POST['contact_instagram']) ? $_POST['contact_instagram'] : '#';
 
     if (strlen($password) < 6) {
         $errors[] = "Password must be at least 6 characters long.";

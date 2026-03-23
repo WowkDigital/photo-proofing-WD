@@ -22,11 +22,11 @@ if ($data === null || !isset($data->selectedFiles) || !isset($data->clientData))
 }
 
 $albumSlug = $_GET['s'] ?? 'default';
-$stmtAlbum = $pdo->prepare("SELECT id, name FROM albums WHERE slug = ?");
+$stmtAlbum = $pdo->prepare("SELECT id, internal_name FROM albums WHERE slug = ?");
 $stmtAlbum->execute([$albumSlug]);
 $albumRow = $stmtAlbum->fetch();
 $albumId = $albumRow['id'] ?? null;
-$albumName = $albumRow['name'] ?? 'Nieznany album';
+$albumName = $albumRow['internal_name'] ?? 'Nieznany album';
 
 if (!$albumId) {
     http_response_code(404);

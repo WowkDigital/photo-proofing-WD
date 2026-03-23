@@ -550,14 +550,12 @@
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div class="relative"><span
-                                        class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
-                                            data-lucide="instagram" class="w-5 h-5"></i></span><input type="text"
+                                        class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg></span><input type="text"
                                         id="client-instagram" name="instagram"
                                         class="contact-field w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
                                         placeholder="Instagram"></div>
                                 <div class="relative"><span
-                                        class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><i
-                                            data-lucide="facebook" class="w-5 h-5"></i></span><input type="text"
+                                        class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></span><input type="text"
                                         id="client-facebook" name="facebook"
                                         class="contact-field w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 pl-11 pr-4 text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-gray-500"
                                         placeholder="Facebook"></div>
@@ -611,8 +609,7 @@
                     class="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
                         data-lucide="send"></i><span>Telegram</span></a>
                 <a id="contact-facebook" href="#"
-                    class="flex items-center space-x-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
-                        data-lucide="facebook"></i><span>Facebook</span></a>
+                    class="flex items-center space-x-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><span>Facebook</span></a>
                 <a id="contact-signal" href="#"
                     class="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
                         data-lucide="message-circle"></i><span>Signal</span></a>
@@ -620,8 +617,7 @@
                     class="flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i
                         data-lucide="message-circle"></i> <span>WhatsApp</span></a>
                 <a id="contact-instagram" href="#"
-                    class="flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition-opacity"><i
-                        data-lucide="instagram"></i><span>Instagram</span></a>
+                    class="flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition-opacity"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg><span>Instagram</span></a>
             </div>
         </section>
 
@@ -913,10 +909,25 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ clientData, selectedFiles: filenames, selectionDate: new Date().toISOString() })
                     });
-                    if (!response.ok) throw new Error(`Błąd serwera: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        let errorMsg = `Błąd serwera: ${response.status}`;
+                        try {
+                            const errorJson = await response.json();
+                            if (errorJson.message) errorMsg = errorJson.message;
+                        } catch(e) {
+                            // Ignoruj błąd parsowania JSON
+                        }
+                        throw new Error(errorMsg);
+                    }
+
+                    const responseData = await response.json();
+                    if (responseData.status !== 'success') {
+                        throw new Error(responseData.message || 'Nie udało się poprawnie zapisać w bazie.');
+                    }
 
                     // --- ZMIANA: Sztuczne opóźnienie ---
-                    resultsModal.message.textContent = 'Przetwarzanie zapisu...';
+                    resultsModal.message.textContent = 'Trwa weryfikacja i zapis w bazie danych...';
                     // Czekaj 1.5 sekundy
                     await new Promise(resolve => setTimeout(resolve, 1500));
                     // --- KONIEC ZMIANY ---
@@ -924,8 +935,8 @@
                     // 2. Ustaw stan sukcesu
                     resultsModal.iconContainer.innerHTML = '<i data-lucide="check" class="w-10 h-10 text-white"></i>';
                     resultsModal.iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-500 mb-4";
-                    resultsModal.title.textContent = 'Wybór Zapisany!';
-                    resultsModal.message.textContent = 'Twoje wybrane zdjęcia zostały pomyślnie przesłane. Dziękujemy!';
+                    resultsModal.title.textContent = '🎉 Wybór Zapisany W Bazie!';
+                    resultsModal.message.innerHTML = 'Twoje wybrane zdjęcia i dane kontaktowe <b>zostały bezpiecznie zapisane w bazie danych.</b><br><br>Dziękujemy!';
                     resultsModal.detailsContainer.classList.remove('hidden'); // Pokaż szczegóły
                     lucide.createIcons();
 
