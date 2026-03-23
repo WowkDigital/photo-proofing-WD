@@ -145,6 +145,10 @@ try {
             </div>
             
             <div class="flex items-center gap-3">
+                <button onclick="exportAllSelections()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent shadow-lg hover:shadow-xl">
+                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Eksportuj Wybory
+                </button>
+
                 <button onclick="toggleModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl flex items-center text-sm font-semibold group">
                     <i data-lucide="plus-circle" class="w-4 h-4 mr-2 group-hover:rotate-90 transition-transform"></i> Nowy Album
                 </button>
@@ -503,6 +507,93 @@ try {
                 sessionInput.value = maskedKeys.join('\n');
             }
         });
+        async function exportAllSelections() {
+            const btn = event.currentTarget;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i> Pobieranie...';
+            btn.disabled = true;
+            lucide.createIcons();
+
+            try {
+                const response = await fetch('../api/get-all-selections.php');
+                const result = await response.json();
+
+                if (result.status !== 'success') {
+                    throw new Error(result.message || 'Błąd pobierania danych');
+                }
+
+                const selections = result.data;
+                const keys = VAULT.keys;
+
+                // Przygotuj nagłówek CSV
+                let csvRows = ['Album,Data,Klient,Email,Telefon,Wybrane Pliki,Notatki'];
+
+                for (const sel of selections) {
+                    const hash = sel.encryption_key_hash;
+                    const hex = keys[hash];
+                    let fileNames = [];
+
+                    if (hex) {
+                        const key = await CryptoHelper.importKeyFromHex(hex);
+                        for (const p of sel.photos_data) {
+                            try {
+                                const decryptedName = await decryptString(p.original_filename, key);
+                                fileNames.push(decryptedName);
+                            } catch (e) {
+                                fileNames.push(p.original_filename);
+                            }
+                        }
+                    } else {
+                        fileNames = sel.photos_data.map(p => p.original_filename + " (Zaszyfrowane)");
+                    }
+
+                    const row = [
+                        `"${sel.album_name.replace(/"/g, '""')}"`,
+                        `"${sel.selection_date}"`,
+                        `"${sel.client_name.replace(/"/g, '""')}"`,
+                        `"${(sel.client_email || '').replace(/"/g, '""')}"`,
+                        `"${(sel.client_phone || '').replace(/"/g, '""')}"`,
+                        `"${fileNames.join(', ').replace(/"/g, '""')}"`,
+                        `"${(sel.client_notes || '').replace(/"/g, '""')}"`
+                    ];
+                    csvRows.push(row.join(','));
+                }
+
+                const csvContent = "\uFEFF" + csvRows.join('\n'); // Adding BOM for Excel compatibility (UTF-8)
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `eksport_wyborow_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+            } catch (e) {
+                console.error(e);
+                alert("Wystąpił błąd podczas eksportu: " + e.message);
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+
+        async function decryptString(base64str, key) {
+            if (!base64str) return base64str;
+            try {
+                const binary = atob(base64str);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                if (bytes.byteLength < 12) return base64str;
+                const iv = bytes.slice(0, 12);
+                const ciphertext = bytes.slice(12);
+                const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+                return new TextDecoder().decode(decryptedBuffer);
+            } catch(e) {
+                return base64str;
+            }
+        }
     </script>
 </body>
 </html>

@@ -22,6 +22,8 @@ Aplikacja została zbudowana w architekturze klient-serwer z wykorzystaniem nast
   - `db.php`: Inicjalizacja połączenia PDO.
   - `init_db.php`: Skrypt tworzący strukturę bazy danych.
   - `save-selection.php`: Obsługa zapisu wyboru klienta.
+  - `telegram_notify.php`: Moduł powiadomień dla bota Telegram.
+
 - `/data`: Miejsce przechowywania pliku bazy danych SQLite.
 - `/photos`: Zdjęcia przesłane na serwer.
 - `/selection_logs`: Tekstowe kopie zapasowe logów zamówień.
@@ -47,6 +49,10 @@ Aplikacja została zbudowana w architekturze klient-serwer z wykorzystaniem nast
 - `PASSWORD_PROTECTION_ENABLED`: Włączenie/wyłączenie wymagania hasła dla klienta.
 - `ADMIN_PASSWORD_HASH`: Zahashowane hasło do panelu administratora.
 - `CONTACT_*`: Linki do mediów społecznościowych i komunikatorów fotografa.
+- `TELEGRAM_BOT_ENABLED`: Czy powiadomienia o nowych wyborach mają być wysyłane na Telegram.
+- `TELEGRAM_BOT_TOKEN`: Token bota wygenerowany przez @BotFather.
+- `TELEGRAM_CHAT_ID`: ID czatu/użytkownika, na który mają przychodzić powiadomienia.
+
 
 ## 5. Baza Danych (Schema)
 System korzysta z czterech głównych tabel:
@@ -61,6 +67,8 @@ System korzysta z czterech głównych tabel:
 3. Uruchom skrypt `api/init_db.php` (np. przez przeglądarkę lub terminal PHP), aby utworzyć strukturę bazy danych.
 4. Skonfiguruj zahashowane hasło administratora w `api/config.php`.
 5. Zaloguj się do panelu `/admin`, by wgrać pierwsze zdjęcia.
+6. **Konfiguracja Telegram**: Uzyskaj token bota od @BotFather, swoje Chat ID (np. przez @userinfobot) i wpisz je w `api/config.php`. Ustaw `TELEGRAM_BOT_ENABLED` na `true`, aby otrzymywać natychmiastowe powiadomienia o nowych wyborach klientów.
+
 
 ---
 *Dokumentacja wygenerowana przez Antigravity.*

@@ -370,27 +370,68 @@
         </button>
 
         <div id="instructions"
-            class="mb-8 p-6 bg-[#2c2c54] rounded-lg border border-gray-600 shadow-lg relative transition-opacity duration-300">
-            <button id="close-instructions-btn" class="absolute top-3 right-4 text-gray-400 hover:text-white"
-                aria-label="Zamknij instrukcję"><i data-lucide="x"></i></button>
-            <h2 class="text-xl font-bold mb-4 flex items-center"><i data-lucide="info"
-                    class="w-6 h-6 mr-2 text-green-400"></i>Jak korzystać z galerii?</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-gray-300 text-sm">
-                <div class="flex items-start space-x-3"><i data-lucide="zoom-in"
-                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Kliknij na zdjęcie, aby je
-                        <strong>powiększyć</strong>.</span></div>
-                <div class="flex items-start space-x-3"><i data-lucide="move-horizontal"
-                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Użyj strzałek lub <strong>przesuń
-                            palcem</strong>, aby nawigować.</span></div>
-                <div class="flex items-start space-x-3"><i data-lucide="circle-check"
-                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Kliknij w <strong>kółko
-                            ✓</strong>, aby wybrać/odznaczyć zdjęcie.</span></div>
-                <div class="flex items-start space-x-3"><i data-lucide="layout-grid"
-                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Zmień <strong>układ
-                            kolumn</strong> za pomocą przycisków w nagłówku.</span></div>
-                <div class="flex items-start space-x-3 sm:col-span-2 lg:col-span-2"><i data-lucide="file-check-2"
-                        class="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0"></i><span>Po zakończeniu, kliknij
-                        <strong>"Potwierdź i zapisz wybór"</strong>.</span></div>
+            class="mb-8 p-6 bg-[#2c2c54]/60 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl relative transition-all duration-500 overflow-hidden">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-green-400"></div>
+            <button id="close-instructions-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                aria-label="Zamknij instrukcję">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            
+            <h2 class="text-xl font-bold mb-6 flex items-center text-white">
+                <i data-lucide="sparkles" class="w-6 h-6 mr-3 text-green-400"></i>
+                Jak przygotować swój wybór?
+            </h2>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-gray-300 text-sm">
+                <div class="flex items-start space-x-4">
+                    <div class="bg-green-400/10 p-2.5 rounded-xl flex-shrink-0">
+                        <i data-lucide="search" class="w-5 h-5 text-green-400"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-white mb-1">Przeglądaj</p>
+                        <p class="leading-relaxed">Kliknij w dowolne zdjęcie, aby je powiększyć i zobaczyć każdy detal.</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="bg-green-400/10 p-2.5 rounded-xl flex-shrink-0">
+                        <i data-lucide="check-circle-2" class="w-5 h-5 text-green-400"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-white mb-1">Zaznaczaj</p>
+                        <p class="leading-relaxed">Użyj ikony <span class="text-green-400 font-semibold">✓</span> na miniaturce lub w podglądzie, aby wybrać ujęcie.</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="bg-green-400/10 p-2.5 rounded-xl flex-shrink-0">
+                        <i data-lucide="layout-template" class="w-5 h-5 text-green-400"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-white mb-1">Dostosuj widok</p>
+                        <p class="leading-relaxed">Zmień liczbę kolumn w nagłówku, aby dopasować galerię do swojego ekranu.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start space-x-4">
+                    <div class="bg-blue-400/10 p-2.5 rounded-xl flex-shrink-0">
+                        <i data-lucide="contact" class="w-5 h-5 text-blue-400"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-white mb-1">Podaj dane</p>
+                        <p class="leading-relaxed">Wypełnij formularz na samym dole, podając imię i kontakt do siebie.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start space-x-4 sm:col-span-2 lg:col-span-2">
+                    <div class="bg-green-500/20 p-2.5 rounded-xl flex-shrink-0">
+                        <i data-lucide="send" class="w-5 h-5 text-green-400"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-white mb-1">Zatwierdź wybór</p>
+                        <p class="leading-relaxed">Kliknij <span class="text-green-400 font-semibold">"Potwierdź i zapisz"</span> – otrzymamy Twoją listę i zajmiemy się resztą!</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1245,7 +1286,7 @@
 
                 closeInstructionsBtn.addEventListener('click', () => {
                     instructions.style.opacity = '0';
-                    setTimeout(() => instructions.classList.add('hidden'), 300);
+                    setTimeout(() => instructions.classList.add('hidden'), 500);
                 });
 
                 document.addEventListener('click', (e) => {

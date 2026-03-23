@@ -1,6 +1,8 @@
 <?php
 // api/save-selection.php
+require_once 'config.php';
 require_once 'db.php';
+require_once 'telegram_notify.php';
 
 header('Content-Type: application/json');
 
@@ -20,9 +22,11 @@ if ($data === null || !isset($data->selectedFiles) || !isset($data->clientData))
 }
 
 $albumSlug = $_GET['s'] ?? 'default';
-$stmtAlbum = $pdo->prepare("SELECT id FROM albums WHERE slug = ?");
+$stmtAlbum = $pdo->prepare("SELECT id, name FROM albums WHERE slug = ?");
 $stmtAlbum->execute([$albumSlug]);
-$albumId = $stmtAlbum->fetchColumn();
+$albumRow = $stmtAlbum->fetch();
+$albumId = $albumRow['id'] ?? null;
+$albumName = $albumRow['name'] ?? 'Nieznany album';
 
 if (!$albumId) {
     http_response_code(404);
@@ -75,6 +79,10 @@ try {
     }
 
     $pdo->commit();
+
+    // Powiadomienie Telegram (wydzielone do funkcji)
+    sendTelegramNotification($albumName, $clientData, $selectedFiles);
+
     echo json_encode(['status' => 'success', 'message' => 'Wybór został zapisany w bazie.']);
 
 } catch (PDOException $e) {
