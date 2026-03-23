@@ -232,7 +232,7 @@ try {
                 
                 try {
                     const key = await CryptoHelper.importKeyFromHex(this.activeKeyHex);
-                    const url = `../photos/${photo.filename}`;
+                    const url = `../api/serve_image.php?type=full&file=${encodeURIComponent(photo.filename)}`;
                     const blobUrl = await CryptoHelper.decryptImage(url, key);
                     
                     if (blobUrl) {
@@ -452,7 +452,7 @@ ${!isDecrypted ? '==================================================\n⚠️ UWA
                     
                     images.forEach(async img => {
                         const filename = img.dataset.filename;
-                        const url = `../photos/thumbnails/${filename}`;
+                        const url = `../api/serve_image.php?type=thumb&file=${encodeURIComponent(filename)}`;
                         const blobUrl = await CryptoHelper.decryptImage(url, key);
                         if (blobUrl) {
                             img.src = blobUrl;
