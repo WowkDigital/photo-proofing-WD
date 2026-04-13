@@ -130,6 +130,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="grid md:grid-cols-2 gap-x-6 gap-y-4">
                         <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="maxEdge" class="text-sm font-medium text-gray-300 justify-self-end">Max. krawędź:</label><input type="number" id="maxEdge" min="100" value="2000" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></div>
                         <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="compressionLevel" class="text-sm font-medium text-gray-300 justify-self-end">Jakość:</label><div class="flex items-center"><input type="range" id="compressionLevel" min="1" max="100" value="85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"><span id="compressionLevelValue" class="ml-4 text-sm w-12 text-right">85%</span></div></div>
+                        <div class="md:col-span-2 pt-2 border-t border-gray-700">
+                             <label class="flex items-center space-x-3 cursor-pointer group">
+                                <input type="checkbox" id="showPreviews" class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 rounded focus:ring-cyan-600">
+                                <span class="text-sm text-gray-400 group-hover:text-white transition-colors">Generuj miniatury podglądu (może spowolnić przy dużej ilości zdjęć)</span>
+                            </label>
+                        </div>
                     </div>
                 </fieldset>
             </form>
@@ -149,14 +155,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     document.addEventListener('DOMContentLoaded', () => {
         const CONFIG = { MAX_FILES_PER_BATCH: 2000, UPLOAD_CONCURRENCY: 4, THUMBNAIL_WIDTH: 400, STATUS_MESSAGES: { processing: ["Szyfruję pliki...", "Kompresuję obrazy...", "Przetwarzam lokalnie...", "Przygotowuję bezpieczną paczkę..."], done: ["Sukces! Wszystko gotowe.", "Operacja zakończona pomyślnie."], stopped: ["Proces zatrzymany przez użytkownika."] } };
         const STATE = { filesToUpload: [], isProcessing: false, isProcessingCancelled: false, statusMessageInterval: null, encryptionKey: null };
-        const UI = { uploadForm: document.getElementById('uploadForm'), imageInput: document.getElementById('imageInput'), dropZone: document.getElementById('drop-zone'), filePreviews: document.getElementById('file-previews'), mainButtonContainer: document.getElementById('mainButtonContainer'), dynamicButtonContainer: document.getElementById('dynamicButtonContainer'), submitBtn: document.getElementById('submitBtn'), statusMessage: document.getElementById('statusMessage'), progress: { container: document.getElementById('progressContainer'), bar: document.getElementById('progressBar'), text: document.getElementById('progressText') }, finalSummary: document.getElementById('finalSummary'), statusListContainer: document.getElementById('statusListContainer'), compression: { maxEdge: document.getElementById('maxEdge'), levelSlider: document.getElementById('compressionLevel'), levelValue: document.getElementById('compressionLevelValue') }, };
+        const UI = { uploadForm: document.getElementById('uploadForm'), imageInput: document.getElementById('imageInput'), dropZone: document.getElementById('drop-zone'), filePreviews: document.getElementById('file-previews'), mainButtonContainer: document.getElementById('mainButtonContainer'), dynamicButtonContainer: document.getElementById('dynamicButtonContainer'), submitBtn: document.getElementById('submitBtn'), statusMessage: document.getElementById('statusMessage'), progress: { container: document.getElementById('progressContainer'), bar: document.getElementById('progressBar'), text: document.getElementById('progressText') }, finalSummary: document.getElementById('finalSummary'), statusListContainer: document.getElementById('statusListContainer'), compression: { maxEdge: document.getElementById('maxEdge'), levelSlider: document.getElementById('compressionLevel'), levelValue: document.getElementById('compressionLevelValue') }, showPreviews: document.getElementById('showPreviews') };
         const CryptoHelper = { async generateKey() { return await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]); }, async exportKeyToHex(key) { const buf = await window.crypto.subtle.exportKey("raw", key); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); }, async encrypt(dataBuffer, key) { const iv = window.crypto.getRandomValues(new Uint8Array(12)); const ct = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, dataBuffer); const res = new Uint8Array(iv.length + ct.byteLength); res.set(iv, 0); res.set(new Uint8Array(ct), iv.length); return res.buffer; } };
-        const ImageProcessor = { async process(file, options) { let blob = file; if (file.name.toLowerCase().endsWith('.arw')) { try { blob = await this.convertArwToJpeg(file); } catch (e) { throw new Error(`Błąd konwersji .ARW: ${e.message}`); } } const img = await new Promise((resolve, reject) => { const i = new Image(), u = URL.createObjectURL(blob); i.onload = () => { URL.revokeObjectURL(u); resolve(i); }; i.onerror = err => reject(err); i.src = u; }); const canvas = document.createElement('canvas'); let { width, height } = img; const maxEdge = parseInt(options.max_edge); if (width > height) { if (width > maxEdge) { height *= maxEdge / width; width = maxEdge; } } else { if (height > maxEdge) { width *= maxEdge / height; height = maxEdge; } } canvas.width = Math.round(width); canvas.height = Math.round(height); canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height); const mainImageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', parseFloat(options.compression_level))); const thumbH = canvas.height * (CONFIG.THUMBNAIL_WIDTH / canvas.width), thumbC = document.createElement('canvas'); thumbC.width = CONFIG.THUMBNAIL_WIDTH; thumbC.height = thumbH; thumbC.getContext('2d').drawImage(canvas, 0, 0, CONFIG.THUMBNAIL_WIDTH, thumbH); const thumbImageBlob = await new Promise(r => thumbC.toBlob(r, 'image/jpeg', 0.75)); return { mainImageBlob, thumbImageBlob }; }, async convertArwToJpeg(file) { const arrayBuffer = await file.arrayBuffer(); const tiffData = this.findJpegInArw(arrayBuffer); if (tiffData.offset > 0 && tiffData.length > 0) { const jpegBuffer = arrayBuffer.slice(tiffData.offset, tiffData.offset + tiffData.length); const blob = new Blob([jpegBuffer], { type: 'image/jpeg' }); return await this.applyOrientation(blob, tiffData.orientation); } else { throw new Error('Nie znaleziono podglądu JPG.'); } }, applyOrientation(imageBlob, orientation) { return new Promise((resolve, reject) => { const img = new Image(); const url = URL.createObjectURL(imageBlob); img.onload = () => { URL.revokeObjectURL(url); const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); let { width, height } = img; if (orientation >= 5 && orientation <= 8) { canvas.width = height; canvas.height = width; } else { canvas.width = width; canvas.height = height; } switch (orientation) { case 2: ctx.transform(-1, 0, 0, 1, width, 0); break; case 3: ctx.transform(-1, 0, 0, -1, width, height); break; case 4: ctx.transform(1, 0, 0, -1, 0, height); break; case 5: ctx.transform(0, 1, 1, 0, 0, 0); break; case 6: ctx.transform(0, 1, -1, 0, height, 0); break; case 7: ctx.transform(0, -1, -1, 0, height, width); break; case 8: ctx.transform(0, -1, 1, 0, 0, width); break; } ctx.drawImage(img, 0, 0); canvas.toBlob(blob => resolve(blob), 'image/jpeg'); }; img.onerror = (err) => { URL.revokeObjectURL(url); reject(err); }; img.src = url; }); }, findJpegInArw(arrayBuffer) { const dataView = new DataView(arrayBuffer); const isLittleEndian = dataView.getUint16(0, false) === 0x4949; if (dataView.getUint16(2, isLittleEndian) !== 42) throw new Error('Nieprawidłowy format pliku TIFF.'); let ifdOffset = dataView.getUint32(4, isLittleEndian); let result = { offset: 0, length: 0, orientation: 1 }; while (ifdOffset !== 0) { const ifdResult = this.findDataInIfd(dataView, ifdOffset, isLittleEndian); if (ifdResult.length > result.length) { result = { ...result, ...ifdResult }; } if (ifdResult.orientation !== 1 && result.orientation === 1) { result.orientation = ifdResult.orientation; } ifdOffset = ifdResult.nextIfdOffset; } if (result.offset === 0 || result.length === 0) throw new Error('Nie można zlokalizować danych JPEG.'); return result; }, findDataInIfd(dataView, ifdOffset, isLittleEndian) { let jpegOffset = 0, jpegLength = 0, orientation = 1; const numEntries = dataView.getUint16(ifdOffset, isLittleEndian); for (let i = 0; i < numEntries; i++) { const entryOffset = ifdOffset + 2 + (i * 12); const tag = dataView.getUint16(entryOffset, isLittleEndian); if (tag === 0x014A) { const subIfdOffset = dataView.getUint32(entryOffset + 8, isLittleEndian); const subResult = this.findDataInIfd(dataView, subIfdOffset, isLittleEndian); if (subResult.length > jpegLength) { jpegOffset = subResult.offset; jpegLength = subResult.length; if (subResult.orientation !== 1) orientation = subResult.orientation; } } if (tag === 0x0201) jpegOffset = dataView.getUint32(entryOffset + 8, isLittleEndian); if (tag === 0x0202) jpegLength = dataView.getUint32(entryOffset + 8, isLittleEndian); if (tag === 0x0112) orientation = dataView.getUint16(entryOffset + 8, isLittleEndian); } const nextIfdOffset = dataView.getUint32(ifdOffset + 2 + (numEntries * 12), isLittleEndian); return { offset: jpegOffset, length: jpegLength, orientation: orientation, nextIfdOffset: nextIfdOffset }; } };
+        const ImageProcessor = { async process(file, options) { let blob = file; if (file.name.toLowerCase().endsWith('.arw')) { try { blob = await this.convertArwToJpeg(file); } catch (e) { throw new Error(`Błąd konwersji .ARW: ${e.message}`); } } const img = await new Promise((resolve, reject) => { const i = new Image(), u = URL.createObjectURL(blob); i.onload = () => { URL.revokeObjectURL(u); resolve(i); }; i.onerror = err => reject(err); i.src = u; }); const canvas = document.createElement('canvas'); let { width, height } = img; const maxEdge = parseInt(options.max_edge); if (width > height) { if (width > maxEdge) { height *= maxEdge / width; width = maxEdge; } } else { if (height > maxEdge) { width *= maxEdge / height; height = maxEdge; } } canvas.width = Math.round(width); canvas.height = Math.round(height); canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height); const mainImageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', parseFloat(options.compression_level))); const thumbH = canvas.height * (CONFIG.THUMBNAIL_WIDTH / canvas.width), thumbC = document.createElement('canvas'); thumbC.width = CONFIG.THUMBNAIL_WIDTH; thumbC.height = thumbH; thumbC.getContext('2d').drawImage(canvas, 0, 0, CONFIG.THUMBNAIL_WIDTH, thumbH); const thumbImageBlob = await new Promise(r => thumbC.toBlob(r, 'image/jpeg', 0.75)); return { mainImageBlob, thumbImageBlob }; }, 
+            async convertArwToJpeg(file) { 
+                const arrayBuffer = await file.arrayBuffer(); 
+                const tiffData = this.findJpegInArw(arrayBuffer); 
+                if (tiffData.offset > 0 && tiffData.length > 0) { 
+                    const jpegBuffer = arrayBuffer.slice(tiffData.offset, tiffData.offset + tiffData.length); 
+                    const blob = new Blob([jpegBuffer], { type: 'image/jpeg' }); 
+                    const result = await this.applyOrientation(blob, tiffData.orientation);
+                    return result;
+                } else { 
+                    throw new Error('Nie znaleziono podglądu JPG.'); 
+                } 
+            }, 
+            applyOrientation(imageBlob, orientation) { 
+                return new Promise((resolve, reject) => { 
+                    const img = new Image(); 
+                    const url = URL.createObjectURL(imageBlob); 
+                    img.onload = () => { 
+                        URL.revokeObjectURL(url); 
+                        const canvas = document.createElement('canvas'); 
+                        const ctx = canvas.getContext('2d'); 
+                        let { width, height } = img; 
+                        if (orientation >= 5 && orientation <= 8) { 
+                            canvas.width = height; 
+                            canvas.height = width; 
+                        } else { 
+                            canvas.width = width; 
+                            canvas.height = height; 
+                        } 
+                        switch (orientation) { 
+                            case 2: ctx.transform(-1, 0, 0, 1, width, 0); break; 
+                            case 3: ctx.transform(-1, 0, 0, -1, width, height); break; 
+                            case 4: ctx.transform(1, 0, 0, -1, 0, height); break; 
+                            case 5: ctx.transform(0, 1, 1, 0, 0, 0); break; 
+                            case 6: ctx.transform(0, 1, -1, 0, height, 0); break; 
+                            case 7: ctx.transform(0, -1, -1, 0, height, width); break; 
+                            case 8: ctx.transform(0, -1, 1, 0, 0, width); break; 
+                        } 
+                        ctx.drawImage(img, 0, 0); 
+                        canvas.toBlob(blob => resolve(blob), 'image/jpeg'); 
+                    }; 
+                    img.onerror = (err) => { 
+                        URL.revokeObjectURL(url); 
+                        reject(err); 
+                    }; 
+                    img.src = url; 
+                }); 
+            }, 
+            findJpegInArw(arrayBuffer) { const dataView = new DataView(arrayBuffer); const isLittleEndian = dataView.getUint16(0, false) === 0x4949; if (dataView.getUint16(2, isLittleEndian) !== 42) throw new Error('Nieprawidłowy format pliku TIFF.'); let ifdOffset = dataView.getUint32(4, isLittleEndian); let result = { offset: 0, length: 0, orientation: 1 }; while (ifdOffset !== 0) { const ifdResult = this.findDataInIfd(dataView, ifdOffset, isLittleEndian); if (ifdResult.length > result.length) { result = { ...result, ...ifdResult }; } if (ifdResult.orientation !== 1 && result.orientation === 1) { result.orientation = ifdResult.orientation; } ifdOffset = ifdResult.nextIfdOffset; } if (result.offset === 0 || result.length === 0) throw new Error('Nie można zlokalizować danych JPEG.'); return result; }, findDataInIfd(dataView, ifdOffset, isLittleEndian) { let jpegOffset = 0, jpegLength = 0, orientation = 1; const numEntries = dataView.getUint16(ifdOffset, isLittleEndian); for (let i = 0; i < numEntries; i++) { const entryOffset = ifdOffset + 2 + (i * 12); const tag = dataView.getUint16(entryOffset, isLittleEndian); if (tag === 0x014A) { const subIfdOffset = dataView.getUint32(entryOffset + 8, isLittleEndian); const subResult = this.findDataInIfd(dataView, subIfdOffset, isLittleEndian); if (subResult.length > jpegLength) { jpegOffset = subResult.offset; jpegLength = subResult.length; if (subResult.orientation !== 1) orientation = subResult.orientation; } } if (tag === 0x0201) jpegOffset = dataView.getUint32(entryOffset + 8, isLittleEndian); if (tag === 0x0202) jpegLength = dataView.getUint32(entryOffset + 8, isLittleEndian); if (tag === 0x0112) orientation = dataView.getUint16(entryOffset + 8, isLittleEndian); } const nextIfdOffset = dataView.getUint32(ifdOffset + 2 + (numEntries * 12), isLittleEndian); return { offset: jpegOffset, length: jpegLength, orientation: orientation, nextIfdOffset: nextIfdOffset }; } };
         
-        const updateSubmitButton = () => { const hasFiles = STATE.filesToUpload.length > 0; UI.submitBtn.disabled = !hasFiles; UI.submitBtn.textContent = hasFiles ? `Przetwórz i wyślij (${STATE.filesToUpload.length} plików)` : 'Wybierz pliki, aby rozpocząć'; };
+        const updateSubmitButton = () => { const hasFiles = STATE.filesToUpload.length > 0; UI.submitBtn.disabled = !hasFiles; UI.submitBtn.textContent = hasFiles ? `Przetwórz i wyślij (${STATE.filesToUpload.length})` : 'Wybierz pliki, aby rozpocząć'; };
         
-        const readFileWithExif = async (file) => { try { const arrayBuffer = await file.arrayBuffer(); const tags = ExifReader.load(arrayBuffer); const dateStr = tags['DateTimeOriginal']?.description; if (dateStr) { const parsableDateStr = dateStr.replace(':', '-').replace(':', '-'); return { file, creationDate: new Date(parsableDateStr) }; } } catch (e) { console.warn(`Nie można odczytać EXIF z ${file.name}:`, e); } return { file, creationDate: new Date(file.lastModified) }; };
-
+        const readFileWithExif = async (file) => { 
+            try { 
+                const tags = await ExifReader.load(file); 
+                const dateStr = tags['DateTimeOriginal']?.description; 
+                if (dateStr) { 
+                    const parsableDateStr = dateStr.replace(':', '-').replace(':', '-'); 
+                    return { file, creationDate: new Date(parsableDateStr) }; 
+                } 
+            } catch (e) { 
+                console.warn(`Nie można odczytać EXIF z ${file.name}:`, e); 
+            } 
+            return { file, creationDate: new Date(file.lastModified) }; 
+        };
+ 
         const handleFiles = async (files) => {
             UI.statusMessage.textContent = 'Odczytywanie metadanych...';
             try {
@@ -165,8 +231,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     alert(`Możesz dodać maksymalnie ${CONFIG.MAX_FILES_PER_BATCH} plików na raz.`);
                     return;
                 }
-                const filesWithDataPromises = newFiles.map(readFileWithExif);
-                const newFilesWithData = await Promise.all(filesWithDataPromises);
+                
+                // Przetwarzanie sekwencyjne dla oszczędności RAMu
+                const newFilesWithData = [];
+                for (const f of newFiles) {
+                    newFilesWithData.push(await readFileWithExif(f));
+                }
+
                 STATE.filesToUpload.push(...newFilesWithData);
                 STATE.filesToUpload.sort((a, b) => a.creationDate - b.creationDate);
                 renderThumbnails();
@@ -178,22 +249,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (STATE.isProcessing === false) { UI.statusMessage.textContent = ''; }
             }
         };
+ 
+        const cleanupResources = () => {
+            if (window._thumbnailUrls) {
+                window._thumbnailUrls.forEach(url => URL.revokeObjectURL(url));
+            }
+            window._thumbnailUrls = [];
+        };
 
         const renderThumbnails = () => {
+            cleanupResources();
             UI.filePreviews.innerHTML = '';
             UI.filePreviews.classList.toggle('hidden', STATE.filesToUpload.length === 0);
+            
+            const usePreviews = UI.showPreviews.checked;
+
             STATE.filesToUpload.forEach((fileData, index) => {
+                const isArw = fileData.file.name.toLowerCase().endsWith('.arw');
                 const item = document.createElement('div');
-                item.className = 'thumbnail-item aspect-square bg-gray-700 rounded-md flex items-center justify-center p-1';
+                item.className = 'thumbnail-item aspect-square bg-gray-700 rounded-md flex items-center justify-center p-1 overflow-hidden';
+                
+                if (!usePreviews) {
+                    item.innerHTML = `
+                        <div class="flex flex-col items-center text-[10px] text-gray-500 text-center space-y-1">
+                            <span class="truncate w-16 px-1">${fileData.file.name}</span>
+                        </div>
+                        <div class="thumbnail-remove-btn" data-index="${index}"><span>&times;</span></div>
+                    `;
+                    UI.filePreviews.appendChild(item);
+                    return;
+                }
+
                 item.innerHTML = `<img src="" alt="${fileData.file.name}" class="max-w-full max-h-full object-contain"><div class="thumbnail-remove-btn" data-index="${index}"><span>&times;</span></div>`;
                 const img = item.querySelector('img');
-                let fileOrBlobForPreview = fileData.file;
-                if (fileData.file.name.toLowerCase().endsWith('.arw')) {
+                
+                const showImg = (src) => { 
+                    img.src = src; 
+                    if (src.startsWith('blob:')) window._thumbnailUrls.push(src);
+                };
+
+                if (isArw) {
                     ImageProcessor.convertArwToJpeg(fileData.file)
-                        .then(jpegBlob => { const reader = new FileReader(); reader.onload = (e) => { img.src = e.target.result; }; reader.readAsDataURL(jpegBlob); })
+                        .then(jpegBlob => { 
+                            const url = URL.createObjectURL(jpegBlob);
+                            showImg(url);
+                        })
                         .catch(err => { console.error(`Błąd podglądu ${fileData.file.name}:`, err); img.alt = 'Błąd podglądu'; });
                 } else {
-                    const reader = new FileReader(); reader.onload = (e) => { img.src = e.target.result; }; reader.readAsDataURL(fileOrBlobForPreview);
+                    const url = URL.createObjectURL(fileData.file);
+                    showImg(url);
+                }
+                UI.filePreviews.appendChild(item);
+            });
+        };
+w);
                 }
                 UI.filePreviews.appendChild(item);
             });
@@ -213,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             UI.dropZone.addEventListener('dragleave', () => UI.dropZone.classList.remove('drag-over'));
             UI.dropZone.addEventListener('drop', (e) => { e.preventDefault(); UI.dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
             UI.compression.levelSlider.addEventListener('input', () => { UI.compression.levelValue.textContent = `${UI.compression.levelSlider.value}%`; });
+            UI.showPreviews.addEventListener('change', () => renderThumbnails());
             
             UI.filePreviews.addEventListener('click', (e) => {
                 const removeBtn = e.target.closest('.thumbnail-remove-btn');

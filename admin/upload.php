@@ -202,6 +202,12 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                     <div class="grid md:grid-cols-2 gap-x-6 gap-y-4">
                         <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="maxEdge" class="text-sm font-medium text-gray-300 justify-self-end">Max. krawędź:</label><input type="number" id="maxEdge" min="100" value="2000" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></div>
                         <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="compressionLevel" class="text-sm font-medium text-gray-300 justify-self-end">Jakość:</label><div class="flex items-center"><input type="range" id="compressionLevel" min="1" max="100" value="85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"><span id="compressionLevelValue" class="ml-4 text-sm w-12 text-right">85%</span></div></div>
+                        <div class="md:col-span-2 pt-2 border-t border-gray-700">
+                             <label class="flex items-center space-x-3 cursor-pointer group">
+                                <input type="checkbox" id="showPreviews" class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 rounded focus:ring-cyan-600">
+                                <span class="text-sm text-gray-400 group-hover:text-white transition-colors">Generuj miniatury podglądu (może spowolnić przy dużej ilości zdjęć)</span>
+                            </label>
+                        </div>
                     </div>
                 </fieldset>
             </form>
@@ -237,6 +243,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             finalSummary: document.getElementById('finalSummary'), 
             statusListContainer: document.getElementById('statusListContainer'), 
             compression: { maxEdge: document.getElementById('maxEdge'), levelSlider: document.getElementById('compressionLevel'), levelValue: document.getElementById('compressionLevelValue') },
+            showPreviews: document.getElementById('showPreviews'),
             
             // New UI
             albumModeRadios: document.getElementsByName('album_mode'),
@@ -272,6 +279,18 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
         UI.albumModeRadios.forEach(r => r.addEventListener('change', updateUIState));
         UI.keyModeRadios.forEach(r => r.addEventListener('change', updateUIState));
         updateUIState(); // init
+
+        // Mirror Internal Name to Public Title
+        const newInternalNameInput = document.getElementById('newInternalName');
+        const newPublicTitleInput = document.getElementById('newPublicTitle');
+        let publicTitleTouched = false;
+
+        newPublicTitleInput.addEventListener('input', () => { publicTitleTouched = true; });
+        newInternalNameInput.addEventListener('input', () => {
+            if (!publicTitleTouched) {
+                newPublicTitleInput.value = newInternalNameInput.value;
+            }
+        });
 
         const CryptoHelper = { 
             async generateKey() { return await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]); }, 
@@ -317,7 +336,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                     const i = new Image();
                     const u = URL.createObjectURL(blob); 
                     i.onload = () => { URL.revokeObjectURL(u); resolve(i); }; 
-                    i.onerror = err => reject(err); 
+                    i.onerror = err => { URL.revokeObjectURL(u); reject(err); }; 
                     i.src = u; 
                 }); 
                 
@@ -367,7 +386,8 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 if (tiffData.offset > 0 && tiffData.length > 0) { 
                     const jpegBuffer = arrayBuffer.slice(tiffData.offset, tiffData.offset + tiffData.length); 
                     const blob = new Blob([jpegBuffer], { type: 'image/jpeg' }); 
-                    return await this.applyOrientation(blob, tiffData.orientation); 
+                    const result = await this.applyOrientation(blob, tiffData.orientation); 
+                    return result;
                 } else { 
                     throw new Error('Nie znaleziono podglądu JPG.'); 
                 } 
@@ -469,14 +489,32 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
         };
         
         const updateSubmitButton = () => { const hasFiles = STATE.filesToUpload.length > 0; UI.submitBtn.disabled = !hasFiles; UI.submitBtn.textContent = hasFiles ? `Przetwórz i wyślij (${STATE.filesToUpload.length} plików)` : 'Wybierz pliki, aby rozpocząć'; };
-        const readFileWithExif = async (file) => { try { const arrayBuffer = await file.arrayBuffer(); const tags = ExifReader.load(arrayBuffer); const dateStr = tags['DateTimeOriginal']?.description; if (dateStr) { const parsableDateStr = dateStr.replace(':', '-').replace(':', '-'); return { file, creationDate: new Date(parsableDateStr) }; } } catch (e) { console.warn(`Nie można odczytać EXIF z ${file.name}:`, e); } return { file, creationDate: new Date(file.lastModified) }; };
+        const readFileWithExif = async (file) => { 
+            try { 
+                const tags = await ExifReader.load(file); 
+                const dateStr = tags['DateTimeOriginal']?.description; 
+                if (dateStr) { 
+                    const parsableDateStr = dateStr.replace(':', '-').replace(':', '-'); 
+                    return { file, creationDate: new Date(parsableDateStr) }; 
+                } 
+            } catch (e) { 
+                console.warn(`Nie można odczytać EXIF z ${file.name}:`, e); 
+            } 
+            return { file, creationDate: new Date(file.lastModified) }; 
+        };
         
         const handleFiles = async (files) => {
             UI.statusMessage.textContent = 'Analizuję pliki...';
             try {
                 const newFiles = Array.from(files).filter(f => !STATE.filesToUpload.some(item => item.file.name === f.name && item.file.size === f.size));
                 if (STATE.filesToUpload.length + newFiles.length > CONFIG.MAX_FILES_PER_BATCH) { alert(`Limit to ${CONFIG.MAX_FILES_PER_BATCH} plików.`); return; }
-                const newFilesWithData = await Promise.all(newFiles.map(readFileWithExif));
+                
+                // Przetwarzanie sekwencyjne zamiast Promise.all, aby nie pożreć całego RAMu
+                const newFilesWithData = [];
+                for (const f of newFiles) {
+                    newFilesWithData.push(await readFileWithExif(f));
+                }
+                
                 STATE.filesToUpload.push(...newFilesWithData);
                 STATE.filesToUpload.sort((a, b) => a.creationDate - b.creationDate);
                 renderThumbnails();
@@ -484,30 +522,60 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             } catch (error) { console.error("Błąd przetwarzania:", error); UI.statusMessage.textContent = 'Błąd dodawania plików.'; } finally { if (STATE.isProcessing === false) { UI.statusMessage.textContent = ''; } }
         };
 
-        const renderThumbnails = () => { /* (Kod renderowania z base) */ 
+        const cleanupResources = () => {
+            if (window._thumbnailUrls) {
+                window._thumbnailUrls.forEach(url => URL.revokeObjectURL(url));
+            }
+            window._thumbnailUrls = [];
+        };
+
+        const renderThumbnails = async () => { 
+            cleanupResources();
             UI.filePreviews.innerHTML = '';
             UI.filePreviews.classList.toggle('hidden', STATE.filesToUpload.length === 0);
-            STATE.filesToUpload.forEach((fileData, index) => {
+            
+            const filesToShow = STATE.filesToUpload;
+            const usePreviews = UI.showPreviews.checked;
+            
+            for (let index = 0; index < filesToShow.length; index++) {
+                const fileData = filesToShow[index];
+                const isArw = fileData.file.name.toLowerCase().endsWith('.arw');
                 const item = document.createElement('div');
-                item.className = 'thumbnail-item aspect-square bg-gray-700/50 rounded-md flex items-center justify-center p-1 border border-gray-600';
+                item.className = 'thumbnail-item aspect-square bg-gray-700/50 rounded-md flex items-center justify-center p-1 border border-gray-600 overflow-hidden';
+                
+                if (!usePreviews) {
+                    item.innerHTML = `
+                        <div class="flex flex-col items-center text-[10px] text-gray-500 text-center space-y-1">
+                            <i data-lucide="${isArw ? 'file-digit' : 'image'}" class="w-6 h-6 text-gray-600"></i>
+                            <span class="truncate w-16 px-1">${fileData.file.name}</span>
+                        </div>
+                        <div class="thumbnail-remove-btn" data-index="${index}"><span>&times;</span></div>
+                    `;
+                    UI.filePreviews.appendChild(item);
+                    continue;
+                }
+
                 item.innerHTML = `<img src="" class="max-w-full max-h-full object-contain opacity-0 transition-opacity duration-300"><div class="thumbnail-remove-btn" data-index="${index}"><span>&times;</span></div>`;
                 const img = item.querySelector('img');
+                UI.filePreviews.appendChild(item);
+
+                const showImg = (src) => { 
+                    img.src = src; 
+                    img.classList.remove('opacity-0'); 
+                    if (src.startsWith('blob:')) window._thumbnailUrls.push(src);
+                };
                 
-                const showImg = (src) => { img.src = src; img.classList.remove('opacity-0'); };
-                
-                if (fileData.file.name.toLowerCase().endsWith('.arw')) {
+                if (isArw) {
                     ImageProcessor.convertArwToJpeg(fileData.file).then(blob => { 
                         const url = URL.createObjectURL(blob); 
                         showImg(url); 
-                        // Clean up URL later or let GC handle it
                     }).catch(() => img.alt = 'ARW');
                 } else {
-                    const reader = new FileReader(); 
-                    reader.onload = (e) => showImg(e.target.result); 
-                    reader.readAsDataURL(fileData.file);
+                    const url = URL.createObjectURL(fileData.file);
+                    showImg(url);
                 }
-                UI.filePreviews.appendChild(item);
-            });
+            }
+            lucide.createIcons();
         };
 
         const processSingleFile = async (fileData, options, index) => { 
@@ -697,6 +765,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
         UI.dropZone.addEventListener('dragleave', () => UI.dropZone.classList.remove('drag-over'));
         UI.dropZone.addEventListener('drop', (e) => { e.preventDefault(); UI.dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
         UI.compression.levelSlider.addEventListener('input', () => { UI.compression.levelValue.textContent = `${UI.compression.levelSlider.value}%`; });
+        UI.showPreviews.addEventListener('change', () => renderThumbnails());
         UI.filePreviews.addEventListener('click', (e) => {
             const removeBtn = e.target.closest('.thumbnail-remove-btn');
             if (removeBtn) {
