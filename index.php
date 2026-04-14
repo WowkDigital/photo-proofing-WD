@@ -102,19 +102,7 @@
         </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="mt-auto py-12 px-4 text-center border-t border-white/5">
-        <div class="max-w-4xl mx-auto">
-            <p class="text-gray-500 text-sm mb-4">
-                &copy; 2024 - 2026 Wowk Digital. Wszelkie prawa zastrzeżone.
-            </p>
-            <div class="flex justify-center space-x-6 text-gray-400">
-                <a href="DOKUMENTACJA.md" class="hover:text-green-400 transition-colors">Dokumentacja</a>
-                <span class="text-gray-700">|</span>
-                <a href="#" class="hover:text-green-400 transition-colors">Pomoc</a>
-            </div>
-        </div>
-    </footer>
+    <script src="https://cdn.jsdelivr.net/gh/WowkDigital/WowkDigitalFooter@latest/wowk-digital-footer.js"></script>
 
     <script>
         // Inicjalizacja ikon Lucide

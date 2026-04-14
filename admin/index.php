@@ -313,9 +313,7 @@ try {
 
     </div>
 
-    <footer class="mt-auto border-t border-[#2c2c54] bg-[#151525] py-6 text-center text-xs text-gray-500">
-        <p>&copy; <?php echo date('Y'); ?> Panel Administratora via Antigravity. Wszystkie prawa zastrzeżone.</p>
-    </footer>
+    <script src="https://cdn.jsdelivr.net/gh/WowkDigital/WowkDigitalFooter@latest/wowk-digital-footer.js"></script>
 
     <!-- Modal Nowy Album -->
     <div id="modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50 px-4">
