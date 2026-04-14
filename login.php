@@ -50,5 +50,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Zaloguj się</button>
         </form>
     </div>
+    <script src="https://cdn.jsdelivr.net/gh/WowkDigital/WowkDigitalFooter@latest/wowk-digital-footer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            WowkDigitalFooter.init({
+                siteName: 'Photo Proofing - Logowanie',
+                container: 'body',
+                brandName: 'Wowk Digital',
+                brandUrl: 'https://github.com/WowkDigital'
+            });
+        });
+    </script>
 </body>
 </html>

@@ -42,5 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
         <p class="mt-4 text-center text-gray-500 text-xs"><a href="../album.html" class="hover:underline">Wróć do albumu</a></p>
     </div>
+    <script src="https://cdn.jsdelivr.net/gh/WowkDigital/WowkDigitalFooter@latest/wowk-digital-footer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            WowkDigitalFooter.init({
+                siteName: 'Panel Administratora - Logowanie',
+                container: 'body',
+                brandName: 'Wowk Digital',
+                brandUrl: 'https://github.com/WowkDigital'
+            });
+        });
+    </script>
 </body>
 </html>

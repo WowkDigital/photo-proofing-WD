@@ -349,6 +349,15 @@ try {
     <script>
         lucide.createIcons();
         
+        document.addEventListener('DOMContentLoaded', () => {
+            WowkDigitalFooter.init({
+                siteName: 'Panel Administratora',
+                container: 'body',
+                brandName: 'Wowk Digital',
+                brandUrl: 'https://github.com/WowkDigital'
+            });
+        });
+        
         const CryptoHelper = {
             async importKeyFromHex(hex) {
                 if(!hex || hex.length !== 64) throw new Error("Invalid hex key");

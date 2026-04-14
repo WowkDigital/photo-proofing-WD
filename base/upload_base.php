@@ -342,5 +342,16 @@ w);
         initEventListeners();
     });
     </script>
+    <script src="https://cdn.jsdelivr.net/gh/WowkDigital/WowkDigitalFooter@latest/wowk-digital-footer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            WowkDigitalFooter.init({
+                siteName: 'Photo Proofing - Uploader (Base)',
+                container: 'body',
+                brandName: 'Wowk Digital',
+                brandUrl: 'https://github.com/WowkDigital'
+            });
+        });
+    </script>
 </body>
 </html>

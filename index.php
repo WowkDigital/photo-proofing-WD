@@ -107,6 +107,16 @@
     <script>
         // Inicjalizacja ikon Lucide
         lucide.createIcons();
+        
+        // Inicjalizacja footera
+        document.addEventListener('DOMContentLoaded', () => {
+            WowkDigitalFooter.init({
+                siteName: 'Photo Proofing',
+                container: 'body',
+                brandName: 'Wowk Digital',
+                brandUrl: 'https://github.com/WowkDigital'
+            });
+        });
     </script>
 </body>
 </html>
