@@ -161,8 +161,8 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                                 <span class="text-gray-300 font-medium group-hover:text-white transition-colors">Stwórz nowy album</span>
                             </label>
                             <div id="newAlbumInputs" class="space-y-3 <?php echo empty($albums) ? '' : 'opacity-50 pointer-events-none'; ?> transition-all">
-                                <input type="text" id="newInternalName" placeholder="Nazwa wewnętrzna (dla Ciebie)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none text-sm">
-                                <input type="text" id="newPublicTitle" placeholder="Tytuł publiczny (dla Klienta)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none text-sm">
+                                <input type="text" id="newInternalName" name="new_internal_name" placeholder="Nazwa wewnętrzna (dla Ciebie)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none text-sm">
+                                <input type="text" id="newPublicTitle" name="new_public_title" placeholder="Tytuł publiczny (dla Klienta)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none text-sm">
                             </div>
                         </div>
                     </div>
@@ -181,7 +181,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                                 <input type="radio" name="key_mode" value="existing" class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-600">
                                 <span class="text-gray-300 group-hover:text-white transition-colors">Użyj <strong>istniejącego klucza</strong></span>
                             </label>
-                            <input type="text" id="existingKeyInput" placeholder="Wklej tutaj klucz (64 znaki hex)..." class="flex-grow w-full sm:w-auto bg-gray-700 border border-gray-600 rounded-lg p-2 text-sm text-cyan-400 font-mono focus:border-cyan-500 outline-none opacity-50 pointer-events-none transition-all">
+                            <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="Wklej tutaj klucz (64 znaki hex)..." class="flex-grow w-full sm:w-auto bg-gray-700 border border-gray-600 rounded-lg p-2 text-sm text-cyan-400 font-mono focus:border-cyan-500 outline-none opacity-50 pointer-events-none transition-all">
                         </div>
                      </div>
                 </div>
@@ -200,7 +200,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 <fieldset class="border border-gray-600 rounded-lg p-4 mb-4">
                     <legend class="px-2 text-cyan-400 font-semibold text-sm">Opcje kompresji</legend>
                     <div class="grid md:grid-cols-2 gap-x-6 gap-y-4">
-                        <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="maxEdge" class="text-sm font-medium text-gray-300 justify-self-end">Max. krawędź:</label><input type="number" id="maxEdge" min="100" value="2000" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></div>
+                        <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="maxEdge" class="text-sm font-medium text-gray-300 justify-self-end">Max. krawędź:</label><input type="number" id="maxEdge" name="max_edge" min="100" value="2000" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></div>
                         <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="compressionLevel" class="text-sm font-medium text-gray-300 justify-self-end">Jakość:</label><div class="flex items-center"><input type="range" id="compressionLevel" min="1" max="100" value="85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"><span id="compressionLevelValue" class="ml-4 text-sm w-12 text-right">85%</span></div></div>
                         <div class="md:col-span-2 pt-2 border-t border-gray-700">
                              <label class="flex items-center space-x-3 cursor-pointer group">

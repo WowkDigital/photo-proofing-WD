@@ -702,7 +702,7 @@
             <h2 class="text-2xl font-bold mb-2">Galeria jest chroniona</h2>
             <p class="text-gray-400 mb-6">Podaj klucz dostępu, aby odszyfrować i wyświetlić zdjęcia.</p>
             <form id="password-form">
-                <input type="text" id="password-input"
+                <input type="text" id="password-input" name="password" autocomplete="off"
                     class="w-full bg-[#1a1a2e] border border-gray-600 rounded-lg py-3 px-4 text-center text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-gray-500"
                     placeholder="Wklej klucz tutaj...">
                 <p id="password-error" class="text-red-400 text-sm h-5 mt-2" aria-live="polite"></p>
@@ -1319,7 +1319,16 @@
                             const response = await fetch(objectUrl);
                             const blob = await response.blob();
                             
-                            const fileName = photo.original_filename || photo.filename;
+                            let fileName = photo.original_filename || photo.filename;
+                            
+                            // Zmiana rozszerzenia na .jpg
+                            const lastDotIndex = fileName.lastIndexOf('.');
+                            if (lastDotIndex !== -1) {
+                                fileName = fileName.substring(0, lastDotIndex) + '.jpg';
+                            } else {
+                                fileName = fileName + '.jpg';
+                            }
+
                             zip.file(fileName, blob);
                         } catch (err) {
                             console.error(`Nie udało się dodać zdjęcia ${photo.filename} do ZIP:`, err);

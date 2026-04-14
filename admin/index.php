@@ -331,11 +331,11 @@ try {
                     <input type="hidden" name="action" value="create_album">
                     <div class="mb-5">
                         <label class="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Nazwa wewnętrzna (Admin)</label>
-                        <input type="text" name="internal_name" required placeholder="np. Sesja ślubna Anna i Jan" class="w-full bg-[#151525] border border-[#3f3f6e] rounded-xl p-3.5 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-gray-600">
+                        <input type="text" id="internal_name" name="internal_name" required placeholder="np. Sesja ślubna Anna i Jan" class="w-full bg-[#151525] border border-[#3f3f6e] rounded-xl p-3.5 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-gray-600">
                     </div>
                     <div class="mb-8">
                         <label class="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Tytuł publiczny (Klient)</label>
-                        <input type="text" name="public_title" required placeholder="np. Nasza Galeria Ślubna" class="w-full bg-[#151525] border border-[#3f3f6e] rounded-xl p-3.5 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-gray-600">
+                        <input type="text" id="public_title" name="public_title" required placeholder="np. Nasza Galeria Ślubna" class="w-full bg-[#151525] border border-[#3f3f6e] rounded-xl p-3.5 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-gray-600">
                     </div>
                     <div class="flex justify-end gap-3">
                         <button type="button" onclick="toggleModal()" class="px-5 py-2.5 rounded-xl text-gray-400 font-semibold hover:bg-[#3f3f6e] transition-colors text-sm">Anuluj</button>
