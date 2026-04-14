@@ -9,6 +9,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- DODANE: Biblioteka Canvas-Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
@@ -667,6 +668,13 @@
                     do schowka</button>
             </div>
 
+            <!-- ZMIANA: Dodano przycisk Pobierz Podgląd -->
+            <button id="download-previews-btn"
+                class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 hidden">
+                <i data-lucide="download"></i>
+                <span id="download-btn-text">Pobierz podgląd wybranych zdjęć (.zip)</span>
+            </button>
+
             <!-- Główny przycisk zamknięcia -->
             <button id="close-results-modal-btn"
                 class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">Zamknij</button>
@@ -765,6 +773,8 @@
                 detailsContainer: document.getElementById('modal-details-container'),
                 list: document.getElementById('selected-list'),
                 copyBtn: document.getElementById('copy-btn'),
+                downloadBtn: document.getElementById('download-previews-btn'),
+                downloadBtnText: document.getElementById('download-btn-text'),
             };
 
             const confirmationModal = {
@@ -901,6 +911,7 @@
                 resultsModal.title.textContent = 'Zapisywanie...';
                 resultsModal.message.textContent = 'Proszę czekać, trwa przesyłanie Twojego wyboru.';
                 resultsModal.detailsContainer.classList.add('hidden');
+                resultsModal.downloadBtn.classList.add('hidden'); // Ukryj na start
                 lucide.createIcons();
 
                 try {
@@ -938,6 +949,7 @@
                     resultsModal.title.textContent = '🎉 Wybór Zapisany W Bazie!';
                     resultsModal.message.innerHTML = 'Twoje wybrane zdjęcia i dane kontaktowe <b>zostały bezpiecznie zapisane w bazie danych.</b><br><br>Dziękujemy!';
                     resultsModal.detailsContainer.classList.remove('hidden'); // Pokaż szczegóły
+                    resultsModal.downloadBtn.classList.remove('hidden'); // Pokaż przycisk pobierania
                     lucide.createIcons();
 
                     // 3. Konfetti! (z opóźnieniem 1s)
@@ -1288,6 +1300,58 @@
                 }
             }
 
+            async function downloadPreviewsAsZip() {
+                const selectedPhotos = photos.filter(p => p.selected);
+                if (selectedPhotos.length === 0) return;
+
+                const originalBtnText = resultsModal.downloadBtnText.textContent;
+                resultsModal.downloadBtn.disabled = true;
+                resultsModal.downloadBtn.classList.add('opacity-75', 'cursor-not-allowed');
+
+                try {
+                    const zip = new JSZip();
+                    
+                    for (let i = 0; i < selectedPhotos.length; i++) {
+                        const photo = selectedPhotos[i];
+                        const progress = Math.round((i / selectedPhotos.length) * 100);
+                        resultsModal.downloadBtnText.textContent = `Pobieranie... (${progress}%)`;
+                        
+                        try {
+                            const objectUrl = await decryptImage(photo.full, decryptionKey);
+                            const response = await fetch(objectUrl);
+                            const blob = await response.blob();
+                            
+                            const fileName = photo.original_filename || photo.filename;
+                            zip.file(fileName, blob);
+                        } catch (err) {
+                            console.error(`Nie udało się dodać zdjęcia ${photo.filename} do ZIP:`, err);
+                        }
+                    }
+
+                    resultsModal.downloadBtnText.textContent = 'Generowanie .zip...';
+                    const content = await zip.generateAsync({ type: "blob" });
+                    
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(content);
+                    const albumName = (albumTitleElement ? albumTitleElement.textContent : 'album').replace(/[/\\?%*:|"<>]/g, '-').trim();
+                    link.download = `wybor_${albumName || 'zdjecia'}.zip`;
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(link.href);
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('Błąd podczas generowania ZIP:', error);
+                    alert('Wystąpił błąd podczas generowania pliku ZIP.');
+                } finally {
+                    resultsModal.downloadBtn.disabled = false;
+                    resultsModal.downloadBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                    resultsModal.downloadBtnText.textContent = originalBtnText;
+                }
+            }
+
             function initializeEventListeners() {
                 passwordModal.form.addEventListener('submit', (e) => {
                     e.preventDefault();
@@ -1422,6 +1486,8 @@
                         resultsModal.copyBtn.textContent = 'Błąd kopiowania';
                     });
                 });
+
+                resultsModal.downloadBtn.addEventListener('click', downloadPreviewsAsZip);
 
                 lightbox.closeBtn.addEventListener('click', closeLightbox);
                 lightbox.element.addEventListener('click', (e) => { if (e.target === lightbox.element) closeLightbox(); });
