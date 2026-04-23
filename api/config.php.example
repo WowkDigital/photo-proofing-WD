@@ -31,3 +31,15 @@ define('CONTACT_FACEBOOK', 'https://www.facebook.com/yourprofile');
 define('CONTACT_SIGNAL', 'https://signal.me/#eu/yourlink');
 define('CONTACT_WHATSAPP', 'https://wa.me/yourphonenumber');
 define('CONTACT_INSTAGRAM', 'https://www.instagram.com/yourprofile/');
+
+// ------------------------------------------------------------------
+// TELEGRAM NOTIFICATIONS
+// ------------------------------------------------------------------
+// Set to `true` to receive instant notifications when a client saves their selection.
+define('TELEGRAM_BOT_ENABLED', false);
+
+// Your Telegram Bot Token (from @BotFather)
+define('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE');
+
+// Your Telegram Chat ID (from @userinfobot)
+define('TELEGRAM_CHAT_ID', 'YOUR_CHAT_ID_HERE');
