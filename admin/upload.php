@@ -107,45 +107,109 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
     <script src="https://cdn.jsdelivr.net/npm/exifreader@4.21.1/dist/exif-reader.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* Style z base/upload_base.php */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+
+        .dashboard-header {
+            background-color: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #2c2c54;
+        }
+
+        .card {
+            background-color: #2c2c54;
+            border: 1px solid #3f3f6e;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            box-shadow: 0 4px 6px -1px rgba(6, 182, 212, 0.2);
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 6px 8px -1px rgba(6, 182, 212, 0.3);
+            transform: translateY(-1px);
+        }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         #imageInput { display: none; }
-        #drop-zone { border: 3px dashed #4a5568; transition: all 0.3s ease; }
+        #drop-zone { border: 2px dashed #3f3f6e; transition: all 0.3s ease; background: rgba(255,255,255,0.02); }
         #drop-zone.drag-over { border-color: #06b6d4; background-color: rgba(6, 182, 212, 0.1); }
         .thumbnail-item { position: relative; animation: fadeIn 0.3s ease-out; }
-        .thumbnail-remove-btn { position: absolute; top: -0.5rem; right: -0.5rem; background-color: #ef4444; color: white; width: 24px; height: 24px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; border: 2px solid #1f2937; opacity: 0; transition: opacity 0.2s ease; transform: scale(0.9); }
+        .thumbnail-remove-btn { position: absolute; top: -0.5rem; right: -0.5rem; background-color: #ef4444; color: white; width: 24px; height: 24px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; border: 2px solid #1f2937; opacity: 0; transition: opacity 0.2s ease; transform: scale(0.9); z-index: 10; }
         .thumbnail-item:hover .thumbnail-remove-btn { opacity: 1; transform: scale(1); }
+        
+        input[type="text"], input[type="number"], select {
+            background-color: #151525;
+            border: 1px solid #3f3f6e;
+            color: white;
+            transition: all 0.2s;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #06b6d4;
+            ring: 2px;
+            ring-color: rgba(6, 182, 212, 0.2);
+            outline: none;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen font-sans p-4">
-
-    <div class="w-full max-w-4xl mb-4 flex justify-between items-center">
-        <a href="index.php" class="text-gray-400 hover:text-white flex items-center transition-colors"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Powrót do Panelu</a>
-    </div>
-
-    <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-700">
-        <div class="text-center mb-6">
-            <h1 class="text-3xl font-bold text-cyan-400">Prześlij i Zaszyfruj Zdjęcia</h1>
-            <p id="statusMessage" class="text-gray-500 text-sm h-5 transition-all mt-1"></p>
+<body class="min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <header class="dashboard-header sticky top-0 z-40 w-full mb-8">
+        <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <a href="index.php" class="bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 rounded-lg shadow-lg hover:scale-105 transition-transform">
+                    <i data-lucide="arrow-left" class="w-6 h-6 text-white"></i>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-white tracking-tight">Prześlij Zdjęcia</h1>
+                    <p class="text-xs text-gray-400 font-medium">Panel Administratora</p>
+                </div>
+            </div>
+            <div id="statusMessage" class="text-cyan-400 text-sm font-medium"></div>
         </div>
+    </header>
+
+    <div class="container mx-auto px-4 max-w-5xl flex-grow pb-12">
+        <div class="card p-6 md:p-10">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold text-white">Dodaj i Zaszyfruj Galerię</h2>
+                <p class="text-gray-400 mt-2">Wszystkie zdjęcia zostaną zoptymalizowane i zaszyfrowane przed wysłaniem.</p>
+            </div>
 
         <div id="formContainer">
-            <form id="uploadForm" novalidate>
+            <form id="uploadForm" novalidate class="space-y-8">
                 
                 <!-- SEKCJA: WYBÓR ALBUMU -->
-                <div class="mb-8 bg-gray-900/50 p-6 rounded-xl border border-gray-700">
-                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center"><i data-lucide="folder" class="w-5 h-5 mr-2 text-cyan-400"></i> Wybierz Album</h3>
+                <div class="bg-[#151525] p-6 rounded-2xl border border-[#3f3f6e] relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <i data-lucide="folder" class="w-24 h-24 text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-6 flex items-center">
+                        <span class="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center mr-3">
+                            <i data-lucide="folder" class="w-4 h-4 text-cyan-400"></i>
+                        </span>
+                        Miejsce Docelowe
+                    </h3>
                     
-                    <div class="flex flex-col md:flex-row gap-6">
+                    <div class="flex flex-col md:flex-row gap-8 relative z-10">
                         <!-- Opcja 1: Istniejący -->
-                        <div class="flex-1">
-                            <label class="flex items-center space-x-3 cursor-pointer group mb-3">
-                                <input type="radio" name="album_mode" value="existing" <?php echo empty($albums) ? '' : 'checked'; ?> class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-600">
-                                <span class="text-gray-300 font-medium group-hover:text-white transition-colors">Dodaj do istniejącego albumu</span>
+                        <div class="flex-1 space-y-4">
+                            <label class="flex items-center space-x-3 cursor-pointer group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <input type="radio" name="album_mode" value="existing" <?php echo empty($albums) ? '' : 'checked'; ?> class="w-5 h-5 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e] focus:ring-cyan-600">
+                                <span class="text-gray-300 font-semibold group-hover:text-white transition-colors">Istniejący Album</span>
                             </label>
-                            <select id="existingAlbumSelect" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed">
-                                <?php if(empty($albums)): ?><option value="">Brak albumów</option><?php endif; ?>
+                            <select id="existingAlbumSelect" class="w-full rounded-xl p-3.5 text-sm font-medium outline-none disabled:opacity-30 disabled:cursor-not-allowed">
+                                <?php if(empty($albums)): ?><option value="">Brak dostępnych albumów</option><?php endif; ?>
                                 <?php foreach ($albums as $a): ?>
                                     <option value="<?php echo $a['id']; ?>" data-slug="<?php echo $a['slug']; ?>" <?php echo $a['id'] == $preselectedAlbumId ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($a['internal_name']); ?>
@@ -154,75 +218,129 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                             </select>
                         </div>
 
+                        <div class="hidden md:block w-px bg-[#3f3f6e]"></div>
+
                         <!-- Opcja 2: Nowy -->
-                        <div class="flex-1 block pl-6 border-l border-gray-700">
-                            <label class="flex items-center space-x-3 cursor-pointer group mb-3">
-                                <input type="radio" name="album_mode" value="new" <?php echo empty($albums) ? 'checked' : ''; ?> class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-600">
-                                <span class="text-gray-300 font-medium group-hover:text-white transition-colors">Stwórz nowy album</span>
+                        <div class="flex-1 space-y-4">
+                            <label class="flex items-center space-x-3 cursor-pointer group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <input type="radio" name="album_mode" value="new" <?php echo empty($albums) ? 'checked' : ''; ?> class="w-5 h-5 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e] focus:ring-cyan-600">
+                                <span class="text-gray-300 font-semibold group-hover:text-white transition-colors">Zupełnie Nowy Album</span>
                             </label>
-                            <div id="newAlbumInputs" class="space-y-3 <?php echo empty($albums) ? '' : 'opacity-50 pointer-events-none'; ?> transition-all">
-                                <input type="text" id="newInternalName" name="new_internal_name" placeholder="Nazwa wewnętrzna (dla Ciebie)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none text-sm">
-                                <input type="text" id="newPublicTitle" name="new_public_title" placeholder="Tytuł publiczny (dla Klienta)" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:border-cyan-500 outline-none text-sm">
+                            <div id="newAlbumInputs" class="space-y-3 <?php echo empty($albums) ? '' : 'opacity-30 pointer-events-none'; ?> transition-all">
+                                <input type="text" id="newInternalName" name="new_internal_name" placeholder="Nazwa w panelu (np. Sesja Anny)" class="w-full rounded-xl p-3.5 text-sm font-medium">
+                                <input type="text" id="newPublicTitle" name="new_public_title" placeholder="Tytuł dla klienta (np. Twoja Galeria)" class="w-full rounded-xl p-3.5 text-sm font-medium">
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- SEKCJA: KLUCZ SZYFROWANIA -->
-                <div class="mb-8 bg-gray-900/50 p-6 rounded-xl border border-gray-700">
-                     <h3 class="text-lg font-semibold text-white mb-4 flex items-center"><i data-lucide="key" class="w-5 h-5 mr-2 text-cyan-400"></i> Klucz Szyfrowania</h3>
-                     <div class="space-y-3">
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="radio" name="key_mode" value="new" checked class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-600">
-                            <span class="text-gray-300 group-hover:text-white transition-colors">Generuj <strong>nowy klucz</strong> (zalecane dla nowego albumu)</span>
+                <div class="bg-[#151525] p-6 rounded-2xl border border-[#3f3f6e] relative overflow-hidden group">
+                     <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <i data-lucide="key" class="w-24 h-24 text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-6 flex items-center">
+                        <span class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center mr-3">
+                            <i data-lucide="key" class="w-4 h-4 text-purple-400"></i>
+                        </span>
+                        Bezpieczeństwo (Klucz)
+                    </h3>
+                     <div class="space-y-4 relative z-10">
+                        <label class="flex items-center space-x-3 cursor-pointer group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                            <input type="radio" name="key_mode" value="new" checked class="w-5 h-5 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e] focus:ring-cyan-600">
+                            <span class="text-gray-300 group-hover:text-white transition-colors font-medium">Wygeneruj nowy, bezpieczny klucz <span class="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full ml-2">ZALECANE</span></span>
                         </label>
-                        <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                        <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
                             <label class="flex items-center space-x-3 cursor-pointer group flex-shrink-0">
-                                <input type="radio" name="key_mode" value="existing" class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-600">
-                                <span class="text-gray-300 group-hover:text-white transition-colors">Użyj <strong>istniejącego klucza</strong></span>
+                                <input type="radio" name="key_mode" value="existing" class="w-5 h-5 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e] focus:ring-cyan-600">
+                                <span class="text-gray-300 group-hover:text-white transition-colors font-medium">Użyj własnego klucza</span>
                             </label>
-                            <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="Wklej tutaj klucz (64 znaki hex)..." class="flex-grow w-full sm:w-auto bg-gray-700 border border-gray-600 rounded-lg p-2 text-sm text-cyan-400 font-mono focus:border-cyan-500 outline-none opacity-50 pointer-events-none transition-all">
+                            <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="64 znaki hex..." class="flex-grow w-full rounded-xl p-2.5 text-xs text-cyan-400 font-mono outline-none opacity-30 pointer-events-none transition-all">
                         </div>
                      </div>
                 </div>
 
-                <div id="drop-zone" class="w-full text-center p-8 rounded-lg mb-4 cursor-pointer hover:bg-gray-700/50 transition-colors">
-                    <i data-lucide="upload-cloud" class="w-12 h-12 mx-auto mb-4 text-gray-500"></i>
-                    <p class="font-bold text-gray-300">Przeciągnij i upuść pliki tutaj</p>
-                    <p class="text-sm text-gray-500 my-2">lub</p>
-                    <label for="imageInput" class="inline-block bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-300 cursor-pointer shadow-lg">Wybierz pliki</label>
+                <div id="drop-zone" class="w-full text-center py-12 px-8 rounded-3xl mb-4 cursor-pointer hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group">
+                    <div class="bg-[#1a1a2e] w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl border border-[#3f3f6e] group-hover:scale-110 transition-transform">
+                        <i data-lucide="image-plus" class="w-10 h-10 text-cyan-400"></i>
+                    </div>
+                    <p class="text-xl font-bold text-white mb-2">Dodaj zdjęcia do kolejki</p>
+                    <p class="text-sm text-gray-400 mb-8 max-w-xs mx-auto">Przeciągnij pliki tutaj lub kliknij przycisk poniżej, aby wybrać je z dysku.</p>
+                    
+                    <label for="imageInput" class="inline-flex items-center bg-[#2c2c54] hover:bg-[#3f3f6e] text-white font-bold py-3 px-8 rounded-2xl transition-all cursor-pointer shadow-lg border border-[#3f3f6e]">
+                        <i data-lucide="plus" class="w-5 h-5 mr-2"></i> Wybierz z folderu
+                    </label>
                     <input type="file" id="imageInput" name="images[]" accept="image/png, image/jpeg, image/gif, .arw" multiple>
-                    <p class="text-xs text-gray-600 mt-4">Obsługa: JPG, PNG, ARW (auto-konwersja)</p>
+                    <div class="mt-6 flex justify-center gap-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        <span>JPG / PNG</span>
+                        <span class="w-1 h-1 bg-gray-700 rounded-full my-auto"></span>
+                        <span>ARW (RAW)</span>
+                    </div>
                 </div>
 
-                <div id="file-previews" class="grid grid-cols-4 md:grid-cols-6 gap-4 mb-4 bg-gray-900/50 p-4 rounded-lg min-h-[110px] hidden"></div>
+                <div id="file-previews" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 mb-4 bg-[#151525] p-6 rounded-2xl border border-[#3f3f6e] min-h-[120px] hidden"></div>
                 
-                <fieldset class="border border-gray-600 rounded-lg p-4 mb-4">
-                    <legend class="px-2 text-cyan-400 font-semibold text-sm">Opcje kompresji</legend>
-                    <div class="grid md:grid-cols-2 gap-x-6 gap-y-4">
-                        <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="maxEdge" class="text-sm font-medium text-gray-300 justify-self-end">Max. krawędź:</label><input type="number" id="maxEdge" name="max_edge" min="100" value="2000" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></div>
-                        <div class="grid grid-cols-[auto_1fr] gap-x-4 items-center"><label for="compressionLevel" class="text-sm font-medium text-gray-300 justify-self-end">Jakość:</label><div class="flex items-center"><input type="range" id="compressionLevel" min="1" max="100" value="85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"><span id="compressionLevelValue" class="ml-4 text-sm w-12 text-right">85%</span></div></div>
-                        <div class="md:col-span-2 pt-2 border-t border-gray-700">
+                <div class="bg-[#151525] p-6 rounded-2xl border border-[#3f3f6e]">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 flex items-center">
+                        <i data-lucide="settings-2" class="w-4 h-4 mr-2"></i> Parametry Przetwarzania
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-x-10 gap-y-6">
+                        <div class="flex flex-col space-y-2">
+                            <div class="flex justify-between items-center">
+                                <label for="maxEdge" class="text-sm font-semibold text-gray-300">Max. Rozmiar (px)</label>
+                                <span class="text-[10px] text-gray-500">Dłuższa krawędź</span>
+                            </div>
+                            <input type="number" id="maxEdge" name="max_edge" min="100" value="2000" class="rounded-xl p-3 text-sm font-bold">
+                        </div>
+                        <div class="flex flex-col space-y-2">
+                            <div class="flex justify-between items-center">
+                                <label for="compressionLevel" class="text-sm font-semibold text-gray-300">Jakość Pliku</label>
+                                <span id="compressionLevelValue" class="text-sm font-bold text-cyan-400">85%</span>
+                            </div>
+                            <div class="pt-2">
+                                <input type="range" id="compressionLevel" min="1" max="100" value="85" class="w-full h-1.5 bg-[#1a1a2e] rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                            </div>
+                        </div>
+                        <div class="md:col-span-2 pt-4 border-t border-[#3f3f6e]">
                              <label class="flex items-center space-x-3 cursor-pointer group">
-                                <input type="checkbox" id="showPreviews" class="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 rounded focus:ring-cyan-600">
-                                <span class="text-sm text-gray-400 group-hover:text-white transition-colors">Generuj miniatury podglądu (może spowolnić przy dużej ilości zdjęć)</span>
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" id="showPreviews" class="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-[#3f3f6e] bg-[#1a1a2e] transition-all checked:bg-cyan-500 checked:border-cyan-500">
+                                    <i data-lucide="check" class="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity pointer-events-none"></i>
+                                </div>
+                                <span class="text-xs text-gray-400 group-hover:text-white transition-colors">Pokaż miniatury w oknie uploader (może obciążyć procesor)</span>
                             </label>
                         </div>
                     </div>
-                </fieldset>
+                </div>
             </form>
         </div>
 
-        <div id="mainButtonContainer"><button type="submit" form="uploadForm" id="submitBtn" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed shadow-xl uppercase tracking-wide" disabled>Wybierz pliki, aby rozpocząć</button></div>
-        
-        <div id="progressContainer" class="mt-6 hidden">
-            <div class="flex justify-between mb-1"><span class="text-base font-medium text-cyan-400">Całkowity postęp</span><span id="progressText" class="text-sm font-medium text-cyan-400">0 / 0</span></div>
-            <div class="w-full bg-gray-700 rounded-full h-2.5"><div id="progressBar" class="bg-cyan-600 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div></div>
+        <div id="mainButtonContainer" class="mt-10">
+            <button type="submit" form="uploadForm" id="submitBtn" class="btn-primary w-full text-white font-black py-4 px-6 rounded-2xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-2xl uppercase tracking-widest text-sm flex items-center justify-center gap-3" disabled>
+                <i data-lucide="lock" class="w-5 h-5"></i>
+                Wybierz pliki, aby rozpocząć
+            </button>
         </div>
         
-        <div id="finalSummary" class="mt-4 hidden animate-in fade-in zoom-in duration-300"></div>
-        <div id="statusListContainer" class="mt-4 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"></div>
-        <div id="dynamicButtonContainer" class="text-center mt-4"></div>
+        <div id="progressContainer" class="mt-10 hidden bg-[#151525] p-6 rounded-2xl border border-[#3f3f6e] animate-in fade-in slide-in-from-bottom-4">
+            <div class="flex justify-between items-end mb-4">
+                <div>
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Status Przetwarzania</span>
+                    <span id="progressText" class="text-xl font-black text-white">0 / 0</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-widest block mb-1">Postęp</span>
+                    <span id="percentageText" class="text-xl font-black text-cyan-400">0%</span>
+                </div>
+            </div>
+            <div class="w-full bg-[#1a1a2e] rounded-full h-3 p-0.5 border border-[#3f3f6e] overflow-hidden">
+                <div id="progressBar" class="bg-gradient-to-r from-cyan-600 to-blue-500 h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_15px_rgba(6,182,212,0.5)]" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <div id="finalSummary" class="mt-8 hidden animate-in fade-in zoom-in duration-500"></div>
+        <div id="statusListContainer" class="mt-6 max-h-60 overflow-y-auto custom-scrollbar space-y-2 pr-2"></div>
+        <div id="dynamicButtonContainer" class="mt-10 flex flex-col sm:flex-row gap-4 justify-center"></div>
     </div>
     
     <script>
@@ -239,7 +357,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             dynamicButtonContainer: document.getElementById('dynamicButtonContainer'), 
             submitBtn: document.getElementById('submitBtn'), 
             statusMessage: document.getElementById('statusMessage'), 
-            progress: { container: document.getElementById('progressContainer'), bar: document.getElementById('progressBar'), text: document.getElementById('progressText') }, 
+            progress: { container: document.getElementById('progressContainer'), bar: document.getElementById('progressBar'), text: document.getElementById('progressText'), percentage: document.getElementById('percentageText') }, 
             finalSummary: document.getElementById('finalSummary'), 
             statusListContainer: document.getElementById('statusListContainer'), 
             compression: { maxEdge: document.getElementById('maxEdge'), levelSlider: document.getElementById('compressionLevel'), levelValue: document.getElementById('compressionLevelValue') },
@@ -583,24 +701,27 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             const sequencePrefix = String(index + 1).padStart(4, '0'); 
             if (STATE.isProcessingCancelled) return { success: false, status: 'cancelled' }; 
             
-            const listItem = document.createElement('li'); 
-            listItem.className = 'text-xs text-gray-400 bg-gray-800/80 p-2 rounded border border-gray-700 flex justify-between'; 
-            listItem.innerHTML = `<span>${sequencePrefix}_${file.name}</span><span class="status">Czekam...</span>`;
+            const listItem = document.createElement('div'); 
+            listItem.className = 'bg-[#1a1a2e] p-3 rounded-xl border border-[#3f3f6e] flex justify-between items-center animate-in fade-in slide-in-from-left-4 duration-300'; 
+            listItem.innerHTML = `<span class="text-[10px] font-mono text-gray-400">${sequencePrefix}_${file.name}</span><span class="status text-[10px] font-bold px-2 py-1 rounded bg-[#151525]">Czekam...</span>`;
             const statusSpan = listItem.querySelector('.status');
-            document.getElementById('status-list').prepend(listItem); 
+            UI.statusListContainer.prepend(listItem); 
             
-            const setStatus = (msg, color) => { statusSpan.textContent = msg; statusSpan.className = `status font-bold ${color}`; };
+            const setStatus = (msg, color, bgColor = 'bg-[#151525]') => { 
+                statusSpan.textContent = msg; 
+                statusSpan.className = `status text-[10px] font-bold px-2 py-1 rounded ${color} ${bgColor}`; 
+            };
 
             try { 
-                setStatus('Kompresja...', 'text-blue-400');
+                setStatus('KOMPRESJA', 'text-blue-400', 'bg-blue-500/10');
                 const { mainImageBlob, thumbImageBlob } = await ImageProcessor.process(file, options); 
                 
-                setStatus('Szyfrowanie...', 'text-purple-400');
+                setStatus('SZYFROWANIE', 'text-purple-400', 'bg-purple-500/10');
                 const encMain = await CryptoHelper.encrypt(await mainImageBlob.arrayBuffer(), STATE.encryptionKey.key); 
                 const encThumb = await CryptoHelper.encrypt(await thumbImageBlob.arrayBuffer(), STATE.encryptionKey.key); 
                 const encOriginalName = await CryptoHelper.encryptString(file.name, STATE.encryptionKey.key);
                 
-                setStatus('Wysyłanie...', 'text-orange-400');
+                setStatus('WYSYŁANIE', 'text-orange-400', 'bg-orange-500/10');
                 const fd = new FormData(); 
                 fd.append('main_encrypted_file', new Blob([encMain])); 
                 fd.append('thumb_encrypted_file', new Blob([encThumb])); 
@@ -613,10 +734,10 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 const json = await res.json(); 
                 if (!res.ok || !json.success) throw new Error(json.error || 'Błąd serwera'); 
                 
-                setStatus('OK', 'text-green-400');
+                setStatus('GOTOWE', 'text-green-400', 'bg-green-500/10');
                 return { success: true, originalSize: file.size, finalSize: json.final_size }; 
             } catch (e) { 
-                setStatus('Błąd', 'text-red-500'); 
+                setStatus('BŁĄD', 'text-red-500', 'bg-red-500/10'); 
                 console.error(e); 
                 return { success: false, finalSize: 0 }; 
             } 
@@ -681,6 +802,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                     const percent = Math.round((stats.completedCount / STATE.filesToUpload.length) * 100);
                     UI.progress.text.textContent = `${stats.completedCount} / ${STATE.filesToUpload.length}`; 
                     UI.progress.bar.style.width = `${percent}%`; 
+                    UI.progress.percentage.textContent = `${percent}%`;
                 } 
             }; 
             await Promise.all(Array(CONFIG.UPLOAD_CONCURRENCY).fill(null).map(worker)); 
@@ -702,36 +824,54 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 // Prościej: użyć relatywnej ścieżki ../album.html
                 
                 // Konstrukcja linku:
-                const path = window.location.pathname; // Np. /projekt/admin/upload.php
-                const projectRoot = path.substring(0, path.lastIndexOf('/admin/')); // /projekt
+                const path = window.location.pathname; 
+                const projectRoot = path.substring(0, path.lastIndexOf('/admin/')); 
                 const albumUrl = `${host}${projectRoot}/album.html?s=${STATE.targetAlbumSlug}#${STATE.encryptionKey.hex}`;
 
                 UI.finalSummary.innerHTML = `
-                    <div class="bg-gray-800 p-6 rounded-lg text-center border border-gray-700">
-                        <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/50">
-                            <i data-lucide="check" class="text-white w-8 h-8"></i>
-                        </div>
-                        <h2 class="text-2xl font-bold text-white mb-2">Sukces!</h2>
-                        <p class="text-gray-400 mb-6">Prześlano ${stats.successCount} z ${stats.fileCount} zdjęć.</p>
-                        
-                        <div class="bg-black/30 p-4 rounded-lg border border-gray-600 text-left mb-4">
-                            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Twój Link z Kluczem:</p>
-                            <div class="flex gap-2">
-                                <input readonly value="${albumUrl}" class="flex-grow bg-transparent text-cyan-400 text-sm font-mono border-none focus:ring-0 p-0">
-                                <button onclick="navigator.clipboard.writeText('${albumUrl}'); this.innerText='OK!'" class="text-white bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs font-bold transition-colors">KOPIUJ</button>
-                            </div>
+                    <div class="bg-[#151525] p-8 rounded-3xl text-center border border-[#3f3f6e] shadow-2xl relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                            <i data-lucide="party-popper" class="w-32 h-32 text-white"></i>
                         </div>
 
-                        <div class="bg-black/30 p-4 rounded-lg border border-gray-600 text-left">
-                            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Tylko Klucz (HEX) do panelu Admina:</p>
-                             <div class="flex gap-2">
-                                <input readonly value="${STATE.encryptionKey.hex}" class="flex-grow bg-transparent text-gray-400 text-xs font-mono border-none focus:ring-0 p-0">
-                                <button onclick="navigator.clipboard.writeText('${STATE.encryptionKey.hex}'); this.innerText='OK!'" class="text-white bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs font-bold transition-colors">KOPIUJ</button>
+                        <div class="w-20 h-20 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-green-500/20">
+                            <i data-lucide="check" class="text-white w-10 h-10"></i>
+                        </div>
+                        <h2 class="text-3xl font-black text-white mb-2">Pomyślnie Wysłano!</h2>
+                        <p class="text-gray-400 mb-10">Prześlano ${stats.successCount} z ${stats.fileCount} zdjęć do Twojej galerii.</p>
+                        
+                        <div class="grid gap-4 max-w-lg mx-auto">
+                            <div class="bg-[#1a1a2e] p-5 rounded-2xl border border-[#3f3f6e] text-left group/link relative">
+                                <p class="text-[10px] text-gray-500 uppercase font-black mb-3 flex items-center">
+                                    <i data-lucide="link" class="w-3 h-3 mr-2"></i> Pełny Link do Galerii (z kluczem)
+                                </p>
+                                <div class="flex items-center gap-3">
+                                    <input readonly value="${albumUrl}" class="flex-grow bg-transparent text-cyan-400 text-sm font-mono border-none focus:ring-0 p-0 overflow-hidden text-ellipsis">
+                                    <button onclick="navigator.clipboard.writeText('${albumUrl}'); this.classList.add('bg-green-500'); this.innerHTML='<i data-lucide=\'check\'></i>'" class="bg-[#2c2c54] hover:bg-[#3f3f6e] text-white p-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center min-w-[44px]">
+                                        <i data-lucide="copy" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="bg-[#1a1a2e] p-5 rounded-2xl border border-[#3f3f6e] text-left group/key relative">
+                                <p class="text-[10px] text-gray-500 uppercase font-black mb-3 flex items-center">
+                                    <i data-lucide="key" class="w-3 h-3 mr-2"></i> Sam Klucz Szyfrowania (HEX)
+                                </p>
+                                <div class="flex items-center gap-3">
+                                    <input readonly value="${STATE.encryptionKey.hex}" class="flex-grow bg-transparent text-purple-400 text-xs font-mono border-none focus:ring-0 p-0 overflow-hidden text-ellipsis">
+                                    <button onclick="navigator.clipboard.writeText('${STATE.encryptionKey.hex}'); this.classList.add('bg-green-500'); this.innerHTML='<i data-lucide=\'check\'></i>'" class="bg-[#2c2c54] hover:bg-[#3f3f6e] text-white p-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center min-w-[44px]">
+                                        <i data-lucide="copy" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <button onclick="location.reload()" class="mt-6 w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors">Wgraj kolejne</button>
+                    <button onclick="location.reload()" class="mt-8 btn-primary text-white font-black py-4 px-8 rounded-2xl transition-all shadow-2xl uppercase tracking-widest text-sm flex items-center justify-center gap-3 w-full max-w-sm mx-auto">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        Wgraj kolejne
+                    </button>
                 `;
+                lucide.createIcons();
                 
                 if (stats.successCount > 0) { 
                     const script = document.createElement('script');
@@ -749,9 +889,10 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             UI.mainButtonContainer.classList.add('hidden'); 
             UI.progress.container.classList.remove('hidden'); 
             UI.finalSummary.classList.add('hidden'); 
-            UI.statusListContainer.innerHTML = '<ul id="status-list" class="space-y-2"></ul>'; 
+            UI.statusListContainer.innerHTML = ''; 
             UI.progress.text.textContent = `0 / ${fileCount}`; 
             UI.progress.bar.style.width = '0%'; 
+            UI.progress.percentage.textContent = '0%'; 
             
             UI.dynamicButtonContainer.innerHTML = '';
             // Button Cancel not implemented here to keep simple, just reload
