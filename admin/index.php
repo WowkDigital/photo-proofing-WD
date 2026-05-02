@@ -157,6 +157,10 @@ try {
                     <i data-lucide="activity" class="w-4 h-4 mr-2"></i> Diagnostyka
                 </a>
 
+                <a href="settings.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
+                    <i data-lucide="settings" class="w-4 h-4 mr-2"></i> Ustawienia
+                </a>
+
                 <a href="upload.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
                     <i data-lucide="upload-cloud" class="w-4 h-4 mr-2"></i> Prześlij
                 </a>
