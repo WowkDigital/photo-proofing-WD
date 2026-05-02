@@ -781,6 +781,19 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                     const hex = UI.existingKeyInput.value.trim();
                     STATE.encryptionKey = { key: await CryptoHelper.importKeyFromHex(hex), hex: hex, hash: await CryptoHelper.sha256(hex) };
                 }
+                
+                // Automatycznie zapisz klucz do sejfu administratora
+                try {
+                    await fetch('vault_api.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: 'add_key', 
+                            key_hex: STATE.encryptionKey.hex, 
+                            key_hash: STATE.encryptionKey.hash 
+                        })
+                    });
+                } catch(e) { console.error("Nie udało się zapisać klucza do sejfu:", e); }
             } catch(e) { return alert('Błąd klucza: ' + e.message); }
 
             startProcessingUI(STATE.filesToUpload.length); 

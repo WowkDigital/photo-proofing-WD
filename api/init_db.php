@@ -53,11 +53,38 @@ try {
     )");
     echo "- Tabela 'selected_photos' gotowa.\n";
 
-    // 5. Dodanie domyślnego albumu
+    // 5. Tabela Sejfu Kluczy (Nowość)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS admin_vault (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_hash TEXT NOT NULL UNIQUE,
+        encrypted_data TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    echo "- Tabela 'admin_vault' gotowa.\n";
+
+    // 6. Tabela ustawień (jeśli nie istnieje)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )");
+    echo "- Tabela 'settings' gotowa.\n";
+
+    // 7. Dodanie domyślnego albumu
     $stmt = $pdo->query("SELECT COUNT(*) FROM albums");
     if ($stmt->fetchColumn() == 0) {
         $pdo->exec("INSERT INTO albums (slug, internal_name, public_title) VALUES ('default', 'Główny Album', 'Galeria Zdjęć')");
         echo "- Domyślny album został utworzony.\n";
+    }
+
+    // 8. Inicjalizacja soli dla sejfu
+    $stmtSalt = $pdo->prepare("SELECT value FROM settings WHERE key = 'VAULT_SALT'");
+    $stmtSalt->execute();
+    if (!$stmtSalt->fetch()) {
+        $salt = bin2hex(random_bytes(16));
+        $pdo->prepare("INSERT INTO settings (key, value) VALUES ('VAULT_SALT', ?)")->execute([$salt]);
+        echo "- Sól sejfu została wygenerowana.\n";
     }
 
     $pdo->commit();

@@ -12,6 +12,15 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['password']) && password_verify($_POST['password'], ADMIN_PASSWORD_HASH)) {
         $_SESSION['admin_logged_in'] = true;
+        
+        // Inicjalizacja sejfu kluczy
+        require_once '../api/crypto_helper.php';
+        $stmtSalt = $pdo->query("SELECT value FROM settings WHERE key = 'VAULT_SALT'");
+        $vaultSalt = $stmtSalt->fetchColumn();
+        if ($vaultSalt) {
+            $_SESSION['vault_key'] = bin2hex(VaultCrypto::deriveKey($_POST['password'], $vaultSalt));
+        }
+
         header('Location: index.php');
         exit;
     } else {

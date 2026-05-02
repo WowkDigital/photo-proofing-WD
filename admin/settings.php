@@ -35,6 +35,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Nowe hasło musi mieć co najmniej 6 znaków.");
             }
             $toUpdate['ADMIN_PASSWORD_HASH'] = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
+            
+            // Re-enkrypcja sejfu nowym hasłem
+            require_once '../api/crypto_helper.php';
+            $stmtSalt = $pdo->query("SELECT value FROM settings WHERE key = 'VAULT_SALT'");
+            $vaultSalt = $stmtSalt->fetchColumn();
+            
+            if ($vaultSalt && isset($_SESSION['vault_key'])) {
+                $oldVaultKey = hex2bin($_SESSION['vault_key']);
+                $newVaultKey = VaultCrypto::deriveKey($_POST['new_password'], $vaultSalt);
+                
+                // Pobierz wszystkie klucze
+                $stmtVault = $pdo->query("SELECT id, encrypted_data, iv, tag FROM admin_vault");
+                $vaultEntries = $stmtVault->fetchAll(PDO::FETCH_ASSOC);
+                
+                $updateStmt = $pdo->prepare("UPDATE admin_vault SET encrypted_data = ?, iv = ?, tag = ? WHERE id = ?");
+                
+                foreach ($vaultEntries as $entry) {
+                    $decrypted = VaultCrypto::decrypt($entry['encrypted_data'], $entry['iv'], $entry['tag'], $oldVaultKey);
+                    if ($decrypted) {
+                        $reEncrypted = VaultCrypto::encrypt($decrypted, $newVaultKey);
+                        $updateStmt->execute([
+                            $reEncrypted['encrypted'], 
+                            $reEncrypted['iv'], 
+                            $reEncrypted['tag'], 
+                            $entry['id']
+                        ]);
+                    }
+                }
+                
+                // Aktualizuj klucz w sesji
+                $_SESSION['vault_key'] = bin2hex($newVaultKey);
+            }
         }
 
         $stmt = $pdo->prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");

@@ -400,15 +400,13 @@ try {
                     if (!this.keys[hash]) {
                         this.keys[hash] = hex.toLowerCase();
                         added++;
+                        await this.saveToDatabase(hex.toLowerCase(), hash);
                     }
                 }
                 if (added > 0) {
                     this.saveToSession();
                     this.processAlbums();
-                    
-                    // Zaktualizuj widok, maskując klucze
-                    const maskedKeys = Object.values(this.keys).map(k => k.substring(0, 6) + '***');
-                    document.getElementById('sessionKeysInput').value = maskedKeys.join('\n');
+                    this.updateUI();
                 }
             },
             saveToSession() {
@@ -418,13 +416,38 @@ try {
             loadFromSession() {
                 const saved = sessionStorage.getItem('admin_vault_keys');
                 if (saved) {
-                    this.keys = JSON.parse(saved);
+                    Object.assign(this.keys, JSON.parse(saved));
                     document.getElementById('vaultStatus').textContent = `${Object.keys(this.keys).length} aktywnych`;
-                    
-                    // Wyświetl tylko maskowane klucze
-                    const maskedKeys = Object.values(this.keys).map(k => k.substring(0, 6) + '***');
-                    document.getElementById('sessionKeysInput').value = maskedKeys.join('\n');
                 }
+            },
+            async init() {
+                this.loadFromSession();
+                await this.loadFromDatabase();
+                this.processAlbums();
+                this.updateUI();
+            },
+            async loadFromDatabase() {
+                try {
+                    const res = await fetch('vault_api.php?action=get_all');
+                    const json = await res.json();
+                    if (json.success && json.keys) {
+                        Object.assign(this.keys, json.keys);
+                        this.saveToSession();
+                    }
+                } catch(e) { console.error("Błąd ładowania z bazy:", e); }
+            },
+            async saveToDatabase(hex, hash) {
+                try {
+                    await fetch('vault_api.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'add_key', key_hex: hex, key_hash: hash })
+                    });
+                } catch(e) { console.error("Błąd zapisu do bazy:", e); }
+            },
+            updateUI() {
+                const maskedKeys = Object.values(this.keys).map(k => k.substring(0, 6) + '***');
+                document.getElementById('sessionKeysInput').value = maskedKeys.join('\n');
             },
             async processAlbums() {
                 const cards = document.querySelectorAll('.album-card');
@@ -500,8 +523,7 @@ try {
         }
 
         // Init Vault
-        VAULT.loadFromSession();
-        VAULT.processAlbums();
+        VAULT.init();
 
         const sessionInput = document.getElementById('sessionKeysInput');
         
