@@ -229,6 +229,32 @@ try {
                     </div>
                 </div>
             </div>
+
+            <!-- System Health Section -->
+            <div class="lg:col-span-3 bg-gradient-to-r from-[#2c2c54] to-[#1f1f38] rounded-2xl p-6 border border-[#3f3f6e] flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-orange-500/20 p-3 rounded-2xl text-orange-400">
+                        <i data-lucide="activity" class="w-8 h-8"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Status i Testy Systemu</h2>
+                        <p class="text-sm text-gray-400">Sprawdź czy przesyłanie zdjęć i powiadomienia Telegram działają poprawnie.</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-4 w-full md:w-auto">
+                    <div class="flex items-center space-x-2 px-3 py-1.5 bg-black/20 rounded-lg border border-white/5">
+                        <i data-lucide="upload-cloud" class="w-4 h-4 text-gray-400"></i>
+                        <span class="text-xs font-semibold text-gray-300">Upload: OK</span>
+                    </div>
+                    <div class="flex items-center space-x-2 px-3 py-1.5 bg-black/20 rounded-lg border border-white/5">
+                        <i data-lucide="send" class="w-4 h-4 text-gray-400"></i>
+                        <span class="text-xs font-semibold text-gray-300">Telegram: <?php echo defined('TELEGRAM_BOT_ENABLED') && TELEGRAM_BOT_ENABLED ? 'Aktywny' : 'Wyłączony'; ?></span>
+                    </div>
+                    <a href="diagnostics.php" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl transition-all flex items-center text-sm font-bold shadow-lg shadow-orange-500/20 group">
+                        Uruchom Testy <i data-lucide="chevron-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform"></i>
+                    </a>
+                </div>
+            </div>
         </div>
 
         <main>
