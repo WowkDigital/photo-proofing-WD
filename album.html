@@ -916,7 +916,12 @@
                     const response = await fetch(`api/save-selection.php?s=${albumSlug}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ clientData, selectedFiles: filenames, selectionDate: new Date().toISOString() })
+                        body: JSON.stringify({ 
+                            clientData, 
+                            selectedFiles: filenames, 
+                            originalFiles: originalNames, 
+                            selectionDate: new Date().toISOString() 
+                        })
                     });
                     
                     if (!response.ok) {

@@ -45,9 +45,17 @@ function sendTelegramNotification($albumName, $clientData, $selectedFiles) {
     $msg .= "*Lista plików:*\n";
     
     // Ograniczamy listę plików w jednej wiadomości (Telegram ma limit 4096 znaków)
-    // Jeśli plików jest bardzo dużo, wysyłamy tylko nazwy.
+    $maxFiles = 100; // Rozsądny limit początkowy
+    $currentCount = 0;
     foreach ($selectedFiles as $file) {
-        $msg .= "`" . $file . "`\n";
+        $line = "`" . $file . "`\n";
+        // Sprawdzamy czy dodanie kolejnej linii nie przekroczy limitu (z marginesem)
+        if (mb_strlen($msg . $line) > 3900) {
+            $msg .= "... i " . (count($selectedFiles) - $currentCount) . " więcej plików.";
+            break;
+        }
+        $msg .= $line;
+        $currentCount++;
     }
 
     $url = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN . "/sendMessage";
