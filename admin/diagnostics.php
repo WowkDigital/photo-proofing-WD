@@ -163,6 +163,9 @@ $memoryLimit = ini_get('memory_limit');
                 </div>
             </div>
             <div class="flex gap-3">
+                <button onclick="runAllTests(this)" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-2xl transition-all flex items-center text-sm font-bold shadow-lg shadow-orange-500/20 group">
+                    <i data-lucide="play" class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform"></i> Testuj wszystko
+                </button>
                 <div class="bg-cyan-500/10 px-5 py-2.5 rounded-2xl border border-cyan-500/20 flex items-center">
                     <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse mr-3"></div>
                     <span class="text-cyan-400 text-xs font-bold uppercase tracking-widest">System Online</span>
@@ -345,6 +348,24 @@ $memoryLimit = ini_get('memory_limit');
                 btn.innerHTML = originalContent;
                 lucide.createIcons();
             }
+        }
+        async function runAllTests(btn) {
+            const originalContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Uruchamianie...</span>';
+            lucide.createIcons();
+
+            const tests = ['db_write', 'upload', 'telegram'];
+            for (const type of tests) {
+                const testBtn = document.querySelector(`button[onclick*="'${type}'"]`);
+                if (testBtn && !testBtn.disabled) {
+                    await runTest(type, testBtn);
+                }
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+            lucide.createIcons();
         }
     </script>
 </body>
