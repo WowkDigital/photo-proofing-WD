@@ -10,8 +10,10 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once '../api/logger.php';
     if (isset($_POST['password']) && password_verify($_POST['password'], ADMIN_PASSWORD_HASH)) {
         $_SESSION['admin_logged_in'] = true;
+        Logger::auth('Logowanie udane', 'Panel Administratora');
         
         // Inicjalizacja sejfu kluczy
         require_once '../api/crypto_helper.php';
@@ -25,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } else {
         $error = 'Nieprawidłowe hasło.';
+        Logger::warn('Nieudana próba logowania', 'Błędne hasło');
     }
 }
 ?>

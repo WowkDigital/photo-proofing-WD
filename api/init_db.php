@@ -78,7 +78,18 @@ try {
         echo "- Domyślny album został utworzony.\n";
     }
 
-    // 8. Inicjalizacja soli dla sejfu
+    // 8. Tabela Logów (Nowość)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        message TEXT,
+        details TEXT,
+        ip_address TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    echo "- Tabela 'logs' gotowa.\n";
+
+    // 9. Inicjalizacja soli dla sejfu
     $stmtSalt = $pdo->prepare("SELECT value FROM settings WHERE key = 'VAULT_SALT'");
     $stmtSalt->execute();
     if (!$stmtSalt->fetch()) {

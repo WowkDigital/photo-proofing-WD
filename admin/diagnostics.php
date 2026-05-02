@@ -119,7 +119,17 @@ $gdAvailable = extension_loaded('gd');
 $dataDirWritable = is_writable('../data');
 $photosDirWritable = is_writable('../photos');
 $thumbsDirWritable = is_writable('../photos/thumbnails');
-$dbExists = file_exists(__DIR__ . '/../data/database.sqlite');
+$dbExists = file_exists('../api/database.sqlite');
+
+// Pobierz ostatnie logi
+$recentLogs = [];
+try {
+    $stmtLogs = $pdo->query("SELECT * FROM logs ORDER BY created_at DESC LIMIT 50");
+    $recentLogs = $stmtLogs->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Tabela może jeszcze nie istnieć
+}
+
 $configExists = file_exists(__DIR__ . '/../api/config.php');
 
 $maxUpload = ini_get('upload_max_filesize');
@@ -289,6 +299,68 @@ $memoryLimit = ini_get('memory_limit');
                                 <span>Wyślij wiadomość</span>
                             </button>
                             <div id="res-telegram" class="mt-4 p-4 rounded-xl text-xs hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Log Section -->
+                <div class="card mt-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2 bg-indigo-500/20 rounded-lg">
+                                <i data-lucide="list-todo" class="w-5 h-5 text-indigo-400"></i>
+                            </div>
+                            <h2 class="text-lg font-semibold text-white">Dziennik Zdarzeń</h2>
+                        </div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ostatnie 50 wpisów</span>
+                    </div>
+
+                    <div class="overflow-hidden rounded-xl border border-[#3f3f6e] bg-[#151525]">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-[#1a1a2e] border-b border-[#3f3f6e]">
+                                        <th class="p-4 font-bold text-gray-400 uppercase tracking-wider">Czas</th>
+                                        <th class="p-4 font-bold text-gray-400 uppercase tracking-wider">Typ</th>
+                                        <th class="p-4 font-bold text-gray-400 uppercase tracking-wider">Zdarzenie</th>
+                                        <th class="p-4 font-bold text-gray-400 uppercase tracking-wider">Szczegóły</th>
+                                        <th class="p-4 font-bold text-gray-400 uppercase tracking-wider">IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#3f3f6e]/50">
+                                    <?php if (empty($recentLogs)): ?>
+                                        <tr>
+                                            <td colspan="5" class="p-8 text-center text-gray-500 italic">Brak zarejestrowanej aktywności.</td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php foreach ($recentLogs as $log): 
+                                            $typeColor = 'text-gray-400';
+                                            $typeBg = 'bg-gray-500/10';
+                                            switch($log['event_type']) {
+                                                case 'AUTH': $typeColor = 'text-purple-400'; $typeBg = 'bg-purple-500/10'; break;
+                                                case 'ACTION': $typeColor = 'text-cyan-400'; $typeBg = 'bg-cyan-500/10'; break;
+                                                case 'ERROR': $typeColor = 'text-red-400'; $typeBg = 'bg-red-500/10'; break;
+                                                case 'WARNING': $typeColor = 'text-orange-400'; $typeBg = 'bg-orange-500/10'; break;
+                                                case 'INFO': $typeColor = 'text-green-400'; $typeBg = 'bg-green-500/10'; break;
+                                            }
+                                        ?>
+                                            <tr class="hover:bg-white/5 transition-colors">
+                                                <td class="p-4 text-gray-500 whitespace-nowrap"><?php echo date('H:i:s d.m', strtotime($log['created_at'])); ?></td>
+                                                <td class="p-4">
+                                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-bold <?php echo $typeBg . ' ' . $typeColor; ?>">
+                                                        <?php echo $log['event_type']; ?>
+                                                    </span>
+                                                </td>
+                                                <td class="p-4 font-medium text-gray-200"><?php echo htmlspecialchars($log['message']); ?></td>
+                                                <td class="p-4 text-gray-400 max-w-xs truncate" title="<?php echo htmlspecialchars($log['details']); ?>">
+                                                    <?php echo htmlspecialchars($log['details']); ?>
+                                                </td>
+                                                <td class="p-4 text-gray-500 font-mono text-[10px]"><?php echo htmlspecialchars($log['ip_address']); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

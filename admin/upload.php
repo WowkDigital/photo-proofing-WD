@@ -21,9 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (empty($internalName) || empty($publicTitle)) throw new Exception('Uzupełnij nazwy albumu.');
 
         $slug = bin2hex(random_bytes(8));
-        $stmt = $pdo->prepare("INSERT INTO albums (slug, internal_name, public_title) VALUES (?, ?, ?)");
         $stmt->execute([$slug, $internalName, $publicTitle]);
         
+        require_once '../api/logger.php';
+        Logger::action('Stworzono nowy album', $internalName);
+
         echo json_encode(['success' => true, 'id' => $pdo->lastInsertId(), 'slug' => $slug, 'internal_name' => $internalName]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);

@@ -32,6 +32,9 @@ try {
         $results[] = $sel;
     }
 
+    require_once 'logger.php';
+    Logger::action('Eksportowano listę wyborów klientów');
+
     echo json_encode(['status' => 'success', 'data' => $results]);
 
 } catch (PDOException $e) {

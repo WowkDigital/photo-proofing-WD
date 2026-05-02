@@ -77,6 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pdo->commit();
         $success = 'Ustawienia zostały zapisane pomyślnie.';
+        
+        require_once '../api/logger.php';
+        Logger::action('Zaktualizowano ustawienia systemu', array_keys($toUpdate));
     } catch (Exception $e) {
         $pdo->rollBack();
         $error = 'Błąd: ' . $e->getMessage();

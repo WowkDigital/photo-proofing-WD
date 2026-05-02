@@ -80,8 +80,17 @@ try {
 
     $pdo->commit();
 
-    // Powiadomienie Telegram (wydzielone do funkcji)
     $originalFiles = $data->originalFiles ?? $selectedFiles;
+
+    require_once 'logger.php';
+    Logger::info('Klient zapisał wybór zdjęć', [
+        'album' => $albumName,
+        'klient' => $clientData['name'],
+        'ilosc' => count($selectedFiles),
+        'pliki' => $originalFiles
+    ]);
+
+    // Powiadomienie Telegram (wydzielone do funkcji)
     sendTelegramNotification($albumName, $clientData, $originalFiles);
 
     echo json_encode(['status' => 'success', 'message' => 'Wybór został zapisany w bazie.']);
