@@ -121,12 +121,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
                     FOREIGN KEY (selection_id) REFERENCES selections(id) ON DELETE CASCADE
                 )");
 
+                // Key Vault Table
+                $pdo->exec("CREATE TABLE IF NOT EXISTS admin_vault (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_hash TEXT NOT NULL UNIQUE,
+                    encrypted_data TEXT NOT NULL,
+                    iv TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )");
+
+                // Logs Table
+                $pdo->exec("CREATE TABLE IF NOT EXISTS logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    message TEXT,
+                    details TEXT,
+                    ip_address TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )");
+
+                // Vault Salt
+                $vaultSalt = bin2hex(random_bytes(16));
+
                 // Insert Settings
                 $settings = [
                     'ALBUM_TITLE' => $albumTitle,
                     'ADMIN_PASSWORD_HASH' => password_hash($password, PASSWORD_DEFAULT),
                     'PASSWORD_PROTECTION_ENABLED' => '0',
                     'GALLERY_PASSWORD' => 'change-me',
+                    'VAULT_SALT' => $vaultSalt,
                     'CONTACT_TELEGRAM' => $contactTelegram,
                     'CONTACT_FACEBOOK' => $contactFacebook,
                     'CONTACT_SIGNAL' => $contactSignal,

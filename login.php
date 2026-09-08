@@ -101,14 +101,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
 
                 <button type="submit" 
-                        class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-green-500/20 flex items-center justify-center space-x-2 group">
+                        class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2 group">
                     <span>Zaloguj się</span>
                     <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
                 </button>
             </form>
             
             <div class="mt-8 pt-6 border-t border-white/5 text-center">
-                <a href="index.php" class="text-sm text-gray-500 hover:text-green-400 transition-colors flex items-center justify-center space-x-1">
+                <a href="index.php" class="text-sm text-gray-500 hover:text-cyan-400 transition-colors flex items-center justify-center space-x-1">
                     <i data-lucide="chevron-left" class="w-4 h-4"></i>
                     <span>Powrót do strony głównej</span>
                 </a>

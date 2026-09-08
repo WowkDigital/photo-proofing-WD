@@ -109,13 +109,13 @@ try {
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);
             transition: all 0.2s;
         }
         
         .btn-primary:hover {
-            box-shadow: 0 6px 8px -1px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 6px 16px rgba(6, 182, 212, 0.4);
             transform: translateY(-1px);
         }
 
@@ -145,24 +145,27 @@ try {
             </div>
             
             <div class="flex items-center gap-3">
-                <button onclick="exportAllSelections()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent shadow-lg hover:shadow-xl">
-                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Eksportuj Wybory
+                <button onclick="toggleModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl transition-all flex items-center text-sm font-semibold shadow-lg hover:shadow-cyan-500/25 border border-cyan-400/20">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Nowy Album
                 </button>
 
+                <button onclick="exportAllSelections()" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-4 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
+                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Eksportuj
+                </button>
 
-                <a href="diagnostics.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
+                <a href="diagnostics.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-4 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
                     <i data-lucide="activity" class="w-4 h-4 mr-2"></i> Diagnostyka
                 </a>
 
-                <a href="settings.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
+                <a href="settings.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-4 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
                     <i data-lucide="settings" class="w-4 h-4 mr-2"></i> Ustawienia
                 </a>
 
-                <a href="upload.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-5 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
+                <a href="upload.php" class="bg-[#3f3f6e] hover:bg-[#4f4f8a] text-gray-200 px-4 py-2.5 rounded-xl transition-colors flex items-center text-sm font-semibold border border-transparent hover:border-gray-500">
                     <i data-lucide="upload-cloud" class="w-4 h-4 mr-2"></i> Prześlij
                 </a>
                 
-                <a href="logout.php" class="ml-2 text-gray-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors" title="Wyloguj">
+                <a href="logout.php" class="ml-1 text-gray-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors" title="Wyloguj">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
                 </a>
             </div>

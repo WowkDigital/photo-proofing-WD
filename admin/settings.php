@@ -97,11 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #1a1a2e; color: #e0e0e0; }
-        .card { background-color: #2c2c54; border: 1px solid #3f3f6e; border-radius: 1.5rem; padding: 2rem; }
-        .input-field { background-color: #1a1a2e; border: 1px solid #3f3f6e; border-radius: 0.75rem; padding: 0.75rem 1rem; width: 100%; color: white; outline: none; transition: all 0.2s; }
-        .input-field:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
-        .btn-save { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); transition: all 0.2s; }
-        .btn-save:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+        .card { background-color: #2c2c54; border: 1px solid #3f3f6e; border-radius: 1.5rem; padding: 2rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
+        .input-field { background-color: #151525; border: 1px solid #3f3f6e; border-radius: 0.75rem; padding: 0.75rem 1rem; width: 100%; color: white; outline: none; transition: all 0.2s; }
+        .input-field:focus { border-color: #06b6d4; box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2); }
+        .btn-save { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); transition: all 0.2s; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3); }
+        .btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(6, 182, 212, 0.4); }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -109,12 +109,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
             <div class="flex items-center space-x-4">
-                <a href="index.php" class="p-2 bg-[#2c2c54] rounded-lg hover:bg-[#3f3f6e] transition-colors">
-                    <i data-lucide="arrow-left" class="w-6 h-6 text-gray-400"></i>
+                <a href="index.php" class="p-2.5 bg-[#2c2c54] rounded-xl hover:bg-[#3f3f6e] transition-colors border border-[#3f3f6e]">
+                    <i data-lucide="arrow-left" class="w-5 h-5 text-gray-400"></i>
                 </a>
                 <div>
                     <h1 class="text-2xl font-bold text-white">Ustawienia Systemu</h1>
-                    <p class="text-sm text-gray-400">Konfiguracja galerii, kontaktów i powiadomień</p>
+                    <p class="text-xs text-gray-400">Konfiguracja galerii, kontaktów i powiadomień</p>
                 </div>
             </div>
         </div>
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Ogólne -->
             <div class="card">
                 <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                    <i data-lucide="settings" class="w-5 h-5 text-indigo-400"></i> Konfiguracja Ogólna
+                    <i data-lucide="settings" class="w-5 h-5 text-cyan-400"></i> Konfiguracja Ogólna
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -158,24 +158,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Telegram URL</label>
-                        <input type="url" name="contact_telegram" value="<?php echo htmlspecialchars($settings['CONTACT_TELEGRAM'] ?? ''); ?>" class="input-field text-sm">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Telegram URL / Nazwa</label>
+                        <input type="text" name="contact_telegram" value="<?php echo htmlspecialchars($settings['CONTACT_TELEGRAM'] ?? ''); ?>" class="input-field text-sm" placeholder="https://t.me/... lub @username">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">WhatsApp URL</label>
-                        <input type="url" name="contact_whatsapp" value="<?php echo htmlspecialchars($settings['CONTACT_WHATSAPP'] ?? ''); ?>" class="input-field text-sm">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">WhatsApp URL / Numer</label>
+                        <input type="text" name="contact_whatsapp" value="<?php echo htmlspecialchars($settings['CONTACT_WHATSAPP'] ?? ''); ?>" class="input-field text-sm" placeholder="https://wa.me/... lub +48...">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Facebook URL</label>
-                        <input type="url" name="contact_facebook" value="<?php echo htmlspecialchars($settings['CONTACT_FACEBOOK'] ?? ''); ?>" class="input-field text-sm">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Facebook URL / Profil</label>
+                        <input type="text" name="contact_facebook" value="<?php echo htmlspecialchars($settings['CONTACT_FACEBOOK'] ?? ''); ?>" class="input-field text-sm" placeholder="https://facebook.com/...">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Instagram URL</label>
-                        <input type="url" name="contact_instagram" value="<?php echo htmlspecialchars($settings['CONTACT_INSTAGRAM'] ?? ''); ?>" class="input-field text-sm">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Instagram URL / Profil</label>
+                        <input type="text" name="contact_instagram" value="<?php echo htmlspecialchars($settings['CONTACT_INSTAGRAM'] ?? ''); ?>" class="input-field text-sm" placeholder="https://instagram.com/... lub @username">
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Signal URL</label>
-                        <input type="url" name="contact_signal" value="<?php echo htmlspecialchars($settings['CONTACT_SIGNAL'] ?? ''); ?>" class="input-field text-sm">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Signal URL / Numer</label>
+                        <input type="text" name="contact_signal" value="<?php echo htmlspecialchars($settings['CONTACT_SIGNAL'] ?? ''); ?>" class="input-field text-sm" placeholder="https://signal.me/... lub numer">
                     </div>
                 </div>
             </div>
@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </h2>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" name="telegram_bot_enabled" <?php echo ($settings['TELEGRAM_BOT_ENABLED'] ?? '0') === '1' ? 'checked' : ''; ?> class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
                     </label>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

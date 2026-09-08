@@ -6,6 +6,10 @@ if (strpos($_SERVER['REQUEST_URI'], '/admin') !== false && strpos($_SERVER['REQU
     exit;
 }
 session_start();
+if (!file_exists(__DIR__ . '/../api/config.php')) {
+    header('Location: ../install.php');
+    exit;
+}
 require_once '../api/config.php';
 
 if (!defined('ADMIN_PASSWORD_HASH')) {

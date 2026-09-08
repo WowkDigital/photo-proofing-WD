@@ -49,21 +49,21 @@
                 <i data-lucide="camera" class="w-4 h-4"></i>
                 <span>Photo Proofing System v2.0</span>
             </div>
-            <h1 class="text-5xl md:text-7xl font-bold mb-6 tracking-tight text-white">
+            <h1 class="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">
                 Twój Profesjonalny <br>
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">System Wyboru Zdjęć</span>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400">System Wyboru Zdjęć</span>
             </h1>
             <p class="text-xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
                 Wygodne narzędzie dla fotografów i klientów. Przeglądaj, wybieraj i zamawiaj ujęcia w nowoczesnym, responsywnym interfejsie.
             </p>
             
             <div class="flex flex-wrap justify-center gap-4">
-                <a href="login.php" class="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-500/20 flex items-center space-x-2">
-                    <i data-lucide="log-in" class="w-5 h-5"></i>
-                    <span>Zaloguj się do galerii</span>
+                <a href="album.html" class="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:-translate-y-0.5 flex items-center space-x-2">
+                    <i data-lucide="images" class="w-5 h-5"></i>
+                    <span>Przejdź do galerii</span>
                 </a>
-                <a href="admin" class="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all flex items-center space-x-2">
-                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                <a href="admin/" class="px-8 py-4 bg-[#2c2c54] hover:bg-[#3f3f6e] border border-[#3f3f6e] hover:border-cyan-500/40 text-white font-bold rounded-2xl transition-all hover:-translate-y-0.5 flex items-center space-x-2">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 text-cyan-400"></i>
                     <span>Panel Administratora</span>
                 </a>
             </div>

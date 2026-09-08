@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (empty($internalName) || empty($publicTitle)) throw new Exception('Uzupełnij nazwy albumu.');
 
         $slug = bin2hex(random_bytes(8));
+        $stmt = $pdo->prepare("INSERT INTO albums (slug, internal_name, public_title) VALUES (?, ?, ?)");
         $stmt->execute([$slug, $internalName, $publicTitle]);
         
         require_once '../api/logger.php';
@@ -95,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
 // --- Widok HTML ---
 // Pobierz albumy do listy
-$stmt = $pdo->query("SELECT id, internal_name, slug FROM albums ORDER BY created_at DESC");
+$stmt = $pdo->query("SELECT id, internal_name, slug, encryption_key_hash FROM albums ORDER BY created_at DESC");
 $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $preselectedAlbumId = $_GET['album_id'] ?? 0;
 ?>
@@ -200,7 +201,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                                     <select id="existingAlbumSelect" class="w-full rounded-lg p-2 text-xs font-medium outline-none">
                                         <?php if(empty($albums)): ?><option value="">Brak albumów</option><?php endif; ?>
                                         <?php foreach ($albums as $a): ?>
-                                            <option value="<?php echo $a['id']; ?>" data-slug="<?php echo $a['slug']; ?>" <?php echo $a['id'] == $preselectedAlbumId ? 'selected' : ''; ?>>
+                                            <option value="<?php echo $a['id']; ?>" data-slug="<?php echo $a['slug']; ?>" data-key-hash="<?php echo htmlspecialchars($a['encryption_key_hash'] ?? ''); ?>" <?php echo $a['id'] == $preselectedAlbumId ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($a['internal_name']); ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -239,6 +240,9 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                                         <span class="text-gray-400 group-hover:text-white">Użyj własnego klucza</span>
                                     </label>
                                     <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="64 znaki hex..." class="w-full rounded-lg p-2 text-[10px] text-cyan-400 font-mono outline-none opacity-30 pointer-events-none">
+                                    <p id="vaultKeyHint" class="text-[10px] text-green-400 font-medium hidden flex items-center gap-1">
+                                        <i data-lucide="shield-check" class="w-3 h-3"></i> Klucz automatycznie pobrany z Twojego Sejfu
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -339,8 +343,50 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             existingAlbumSelect: document.getElementById('existingAlbumSelect'),
             newAlbumInputs: document.getElementById('newAlbumInputs'),
             keyModeRadios: document.getElementsByName('key_mode'),
-            existingKeyInput: document.getElementById('existingKeyInput')
+            existingKeyInput: document.getElementById('existingKeyInput'),
+            vaultKeyHint: document.getElementById('vaultKeyHint')
         };
+
+        // --- Sejf Kluczy (pobieranie z bazy / sesji) ---
+        const VAULT = {
+            keys: JSON.parse(sessionStorage.getItem('admin_vault_keys') || '{}'),
+            async init() {
+                try {
+                    const res = await fetch('vault_api.php?action=get_all');
+                    const json = await res.json();
+                    if (json.success && json.keys) {
+                        Object.assign(this.keys, json.keys);
+                        sessionStorage.setItem('admin_vault_keys', JSON.stringify(this.keys));
+                    }
+                } catch(e) { /* cicho w przypadku braku sesji */ }
+                checkAlbumKeyMatch();
+            },
+            getKeyForHash(hash) {
+                return this.keys[hash] || null;
+            }
+        };
+
+        function checkAlbumKeyMatch() {
+            if (!UI.existingAlbumSelect || UI.existingAlbumSelect.selectedIndex === -1) return;
+            const albumMode = document.querySelector('input[name="album_mode"]:checked')?.value;
+            if (albumMode !== 'existing') {
+                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
+                return;
+            }
+
+            const selectedOption = UI.existingAlbumSelect.options[UI.existingAlbumSelect.selectedIndex];
+            const keyHash = selectedOption?.dataset?.keyHash;
+            if (keyHash && VAULT.getKeyForHash(keyHash)) {
+                const hex = VAULT.getKeyForHash(keyHash);
+                UI.existingKeyInput.value = hex;
+                const existingRadio = document.querySelector('input[name="key_mode"][value="existing"]');
+                if (existingRadio) existingRadio.checked = true;
+                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.remove('hidden');
+            } else {
+                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
+            }
+            updateUIState();
+        }
 
         // --- UI Logic for Album/Key Selection ---
         function updateUIState() {
@@ -351,6 +397,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             if(isNewAlbum) {
                 UI.existingAlbumSelect.classList.add('opacity-50');
                 UI.newAlbumInputs.classList.remove('opacity-50', 'pointer-events-none');
+                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
             } else {
                 UI.existingAlbumSelect.classList.remove('opacity-50');
                 UI.newAlbumInputs.classList.add('opacity-50', 'pointer-events-none');
@@ -363,10 +410,13 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 UI.existingKeyInput.focus();
             } else {
                 UI.existingKeyInput.classList.add('opacity-50', 'pointer-events-none');
+                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
             }
         }
-        UI.albumModeRadios.forEach(r => r.addEventListener('change', updateUIState));
+        UI.albumModeRadios.forEach(r => r.addEventListener('change', () => { updateUIState(); checkAlbumKeyMatch(); }));
+        UI.existingAlbumSelect.addEventListener('change', checkAlbumKeyMatch);
         UI.keyModeRadios.forEach(r => r.addEventListener('change', updateUIState));
+        VAULT.init();
         updateUIState(); // init
 
         // Mirror Internal Name to Public Title

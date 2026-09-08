@@ -85,7 +85,7 @@ try {
     require_once 'logger.php';
     Logger::info('Klient zapisał wybór zdjęć', [
         'album' => $albumName,
-        'klient' => $clientData['name'],
+        'klient' => $clientData->name ?? '',
         'ilosc' => count($selectedFiles),
         'pliki' => $originalFiles
     ]);

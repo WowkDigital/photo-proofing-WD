@@ -42,8 +42,12 @@ try {
     <title>Album: <?php echo htmlspecialchars($album['internal_name']); ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #1a1a2e; color: #e0e0e0; }
+    </style>
 </head>
-<body class="bg-[#1a1a2e] text-gray-200 font-sans min-h-screen">
+<body class="bg-[#1a1a2e] text-gray-200 min-h-screen">
     <div class="container mx-auto p-4 max-w-6xl">
         <header class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-[#3f3f6e] pb-4 gap-4">
             <div class="flex items-center">
