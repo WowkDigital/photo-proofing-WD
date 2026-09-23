@@ -1,8 +1,25 @@
 <?php
 // admin/login.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    ]);
+    session_start();
+}
+// Sprawdzenie czy aplikacja została zainstalowana
+if (!file_exists(__DIR__ . '/../api/config.php')) {
+    if (file_exists(__DIR__ . '/../install.php')) {
+        header('Location: ../install.php');
+        exit;
+    }
+    die('Aplikacja nie została jeszcze skonfigurowana. Skontaktuj się z administratorem.');
+}
+
 require_once '../api/config.php';
 require_once '../api/db.php';
+require_once '../api/csrf.php';
 
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
     header('Location: index.php');
@@ -10,25 +27,54 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 }
 
 $error = '';
+$clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$lockoutKey = 'admin_login_rate_' . md5($clientIp);
+$now = time();
+
+if (!isset($_SESSION[$lockoutKey])) {
+    $_SESSION[$lockoutKey] = ['count' => 0, 'locked_until' => 0];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_once '../api/logger.php';
-    if (isset($_POST['password']) && password_verify($_POST['password'], ADMIN_PASSWORD_HASH)) {
-        $_SESSION['admin_logged_in'] = true;
-        Logger::auth('Logowanie udane', 'Panel Administratora');
-        
-        // Inicjalizacja sejfu kluczy
-        require_once '../api/crypto_helper.php';
-        $stmtSalt = $pdo->query("SELECT value FROM settings WHERE key = 'VAULT_SALT'");
-        $vaultSalt = $stmtSalt->fetchColumn();
-        if ($vaultSalt) {
-            $_SESSION['vault_key'] = bin2hex(VaultCrypto::deriveKey($_POST['password'], $vaultSalt));
-        }
-
-        header('Location: index.php');
-        exit;
+    
+    // Sprawdzenie blokady rate limiting
+    if ($_SESSION[$lockoutKey]['locked_until'] > $now) {
+        $remaining = $_SESSION[$lockoutKey]['locked_until'] - $now;
+        $error = "Zbyt wiele nieudanych prób logowania. Spróbuj ponownie za {$remaining} sekund.";
+    } elseif (!verify_csrf_token(false)) {
+        $error = 'Nieprawidłowy token sesji lub formularz wygasł. Odśwież stronę.';
     } else {
-        $error = 'Nieprawidłowe hasło.';
-        Logger::warn('Nieudana próba logowania', 'Błędne hasło');
+        if (isset($_POST['password']) && password_verify($_POST['password'], ADMIN_PASSWORD_HASH)) {
+            // Zresetuj licznik błędów
+            unset($_SESSION[$lockoutKey]);
+            
+            // Ochrona przed Session Fixation
+            session_regenerate_id(true);
+            $_SESSION['admin_logged_in'] = true;
+            Logger::auth('Logowanie udane', 'Panel Administratora');
+            
+            // Inicjalizacja sejfu kluczy
+            require_once '../api/crypto_helper.php';
+            $stmtSalt = $pdo->query("SELECT value FROM settings WHERE key = 'VAULT_SALT'");
+            $vaultSalt = $stmtSalt->fetchColumn();
+            if ($vaultSalt) {
+                $_SESSION['vault_key'] = bin2hex(VaultCrypto::deriveKey($_POST['password'], $vaultSalt));
+            }
+
+            header('Location: index.php');
+            exit;
+        } else {
+            $_SESSION[$lockoutKey]['count']++;
+            if ($_SESSION[$lockoutKey]['count'] >= 5) {
+                $_SESSION[$lockoutKey]['locked_until'] = $now + 300; // 5 minut blokady
+                $error = 'Zbyt wiele nieudanych prób logowania. Dostęp zablokowany na 5 minut.';
+            } else {
+                $triesLeft = 5 - $_SESSION[$lockoutKey]['count'];
+                $error = "Nieprawidłowe hasło. Pozostało prób: {$triesLeft}.";
+            }
+            Logger::warn('Nieudana próba logowania', 'Błędne hasło');
+        }
     }
 }
 ?>
@@ -95,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Login Card -->
         <div class="glass-card p-8">
             <form method="POST" class="space-y-5">
+                <?php echo csrf_field(); ?>
                 <div>
                     <label for="password" class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Hasło administratora</label>
                     <div class="relative">

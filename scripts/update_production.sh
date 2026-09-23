@@ -2,6 +2,11 @@
 # Skrypt do bezpiecznej aktualizacji aplikacji Photo Proofing w środowisku produkcyjnym
 # Służy do wykonania kopii zapasowej przed wdrożeniem nowych plików oraz do ewentualnego przywrócenia zmian.
 
+# Automatyczne przejście do głównego katalogu projektu niezależnie od miejsca wywołania
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR" || exit 1
+
 # Konfiguracja
 BACKUP_DIR="backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -15,7 +20,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Rozpoczynam proces aktualizacji aplikacji...${NC}"
+echo -e "${YELLOW}Rozpoczynam proces aktualizacji aplikacji w katalogu: ${ROOT_DIR}...${NC}"
 
 # Krok 1: Weryfikacja i tworzenie katalogu kopii zapasowej
 if [ ! -d "$BACKUP_DIR" ]; then
@@ -24,7 +29,7 @@ if [ ! -d "$BACKUP_DIR" ]; then
 fi
 
 # Krok 2: Tworzenie kopii zapasowej plików oraz bazy danych
-echo -e "${YELLOW}Tworzenie kopii zapasowej całej aplikacji (pomijanie ciężkich zdjęć, .git oraz samych backupów)...${NC}"
+echo -e "${YELLOW}Tworzenie kopii zapasowej całej aplikacji (pomijanie zdjęć, .git oraz samych backupów)...${NC}"
 tar -czvf "$BACKUP_FILE" $EXCLUDE_DIRS . > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
@@ -34,7 +39,7 @@ else
     exit 1
 fi
 
-# Krok 3: (Opcjonalnie) Kopia samej bazy dla pewności, gdyby pliki bazy wymagały osobnego traktowania
+# Krok 3: (Opcjonalnie) Kopia samej bazy dla pewności
 if [ -f "$DB_FILE" ]; then
     cp "$DB_FILE" "${BACKUP_DIR}/database_${TIMESTAMP}.sqlite"
     echo -e "${GREEN}Sukces: Zabezpieczono dodatkową, osobną kopię bazy danych w: ${BACKUP_DIR}/database_${TIMESTAMP}.sqlite${NC}"
@@ -64,6 +69,6 @@ else
 fi
 
 # Krok 5: Instrukcje na wypadek błędu
-echo -e "${GREEN}Aktualizacja zakończona bezpiecznie.${NC}"
-echo -e "${YELLOW}Jeśli cokolwiek nie działa, przywróć aplikację przed aktualizacją wydając komendę:${NC}"
+echo -e "${GREEN}Aktualizacja zakończona pomyślnie.${NC}"
+echo -e "${YELLOW}Jeśli cokolwiek nie działa, przywróć aplikację z backupu:${NC}"
 echo -e "tar -xzvf ${BACKUP_FILE} -C ./"

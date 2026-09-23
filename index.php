@@ -2,6 +2,10 @@
 /**
  * Strona główna aplikacji Photo Proofing
  */
+if (!file_exists(__DIR__ . '/api/config.php') && file_exists(__DIR__ . '/install.php')) {
+    header('Location: install.php');
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pl">

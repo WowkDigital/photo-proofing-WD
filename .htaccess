@@ -3,8 +3,8 @@
 # 1. Wyłącz listowanie katalogów
 Options -Indexes
 
-# 2. Chroń pliki bazy danych i logi (na wypadek gdyby sub-htaccess nie działał)
-<FilesMatch "\.(sqlite|log|enc)$">
+# 2. Chroń pliki bazy danych, logi, skrypty powłoki i pliki .enc
+<FilesMatch "\.(sqlite|log|enc|sh|example|sql|md)$">
     <IfModule authz_core_module>
         Require all denied
     </IfModule>
@@ -14,15 +14,23 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
-# Wyjątek dla zdjęć .enc serwowanych przez serve_image.php
-# (Brak potrzeby - serve_image.php odczytuje je lokalnie, a FilesMatch blokuje dostęp bezpośredni przez URL)
+# Blokada bezpośredniego dostępu do folderów z danymi, logami i skryptami
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^data(/.*)?$ - [F,L]
+    RewriteRule ^selection_logs(/.*)?$ - [F,L]
+    RewriteRule ^scripts(/.*)?$ - [F,L]
+
+    # Przekierowanie legacy /upload.php do admin/upload.php
+    RewriteRule ^upload\.php$ admin/upload.php [R=301,L]
+</IfModule>
 
 # 3. Zablokuj dostęp do plików wrażliwych
 <Files "config.php">
     <IfModule authz_core_module>
         Require all denied
     </IfModule>
-</FilesMatch>
+</Files>
 
 # 4. Nagłówki bezpieczeństwa
 <IfModule mod_headers.c>
@@ -31,6 +39,3 @@ Options -Indexes
     Header set X-Content-Type-Options "nosniff"
     Header set Referrer-Policy "no-referrer-when-downgrade"
 </IfModule>
-
-# 5. Blokada dostępu do skryptów instalacyjnych (opcjonalnie, skoro dodaliśmy auth)
-# Ale auth jest bezpieczniejsze.

@@ -3,6 +3,11 @@
 require_once 'auth.php';
 require_once '../api/db.php';
 
+// Obsługa akcji POST z weryfikacją CSRF
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token(true);
+}
+
 // Dodawanie nowego albumu
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_album') {
     $slug = bin2hex(random_bytes(8)); // Losowy slug
@@ -11,6 +16,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     $stmt = $pdo->prepare("INSERT INTO albums (slug, internal_name, public_title) VALUES (?, ?, ?)");
     $stmt->execute([$slug, $internalName, $publicTitle]);
+    header('Location: index.php');
+    exit;
+}
+
+// Edycja albumu
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_album') {
+    $albumId = (int)($_POST['album_id'] ?? 0);
+    $internalName = trim($_POST['internal_name'] ?? '');
+    $publicTitle = trim($_POST['public_title'] ?? '');
+    
+    if ($albumId > 0 && !empty($internalName) && !empty($publicTitle)) {
+        $stmt = $pdo->prepare("UPDATE albums SET internal_name = ?, public_title = ? WHERE id = ?");
+        $stmt->execute([$internalName, $publicTitle, $albumId]);
+    }
     header('Location: index.php');
     exit;
 }
@@ -295,6 +314,12 @@ try {
                                     </div>
 
                                     <div class="flex space-x-1">
+                                        <button type="button" onclick="copyAlbumShareLink(this, '<?php echo $album['slug']; ?>', '<?php echo $album['encryption_key_hash']; ?>')" class="p-2 text-gray-400 hover:text-cyan-400 hover:bg-[#3f3f6e] rounded-lg transition-all" title="Kopiuj link dla klienta">
+                                            <i data-lucide="share-2" class="w-4 h-4"></i>
+                                        </button>
+                                        <button type="button" onclick="openEditAlbumModal(<?php echo $album['id']; ?>, '<?php echo htmlspecialchars($album['internal_name'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($album['public_title'] ?? '', ENT_QUOTES); ?>')" class="p-2 text-gray-400 hover:text-white hover:bg-[#3f3f6e] rounded-lg transition-all" title="Edytuj album">
+                                            <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                        </button>
                                         <a href="../album.html?s=<?php echo $album['slug']; ?>" target="_blank" class="view-album-btn hidden p-2 text-cyan-400 hover:text-white hover:bg-cyan-500/20 rounded-lg transition-all" title="Otwórz album">
                                             <i data-lucide="external-link" class="w-4 h-4"></i>
                                         </a>
@@ -305,6 +330,7 @@ try {
                                             <i data-lucide="upload-cloud" class="w-4 h-4"></i>
                                         </a>
                                         <form method="POST" onsubmit="return confirm('Czy usunąć album?')" class="inline">
+                                            <?php echo csrf_field(); ?>
                                             <input type="hidden" name="action" value="delete_album">
                                             <input type="hidden" name="album_id" value="<?php echo $album['id']; ?>">
                                             <button type="submit" class="p-2 text-gray-400 hover:text-red-400 hover:bg-[#3f3f6e] rounded-lg transition-all" title="Usuń">
@@ -338,6 +364,7 @@ try {
                 </div>
 
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <input type="hidden" name="action" value="create_album">
                     <div class="mb-5">
                         <label class="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Nazwa wewnętrzna (Admin)</label>
@@ -356,7 +383,41 @@ try {
         </div>
     </div>
 
+    <!-- Modal Edycja Albumu -->
+    <div id="editModal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50 px-4">
+        <div class="modal-overlay absolute w-full h-full bg-black/80 backdrop-blur-sm" onclick="toggleEditModal()"></div>
+        <div class="modal-container bg-[#2c2c54] w-full max-w-md mx-auto rounded-2xl shadow-2xl z-50 overflow-y-auto border border-[#3f3f6e] transform scale-95 transition-transform duration-300">
+            <div class="modal-content py-8 px-8 text-left">
+                <div class="flex justify-between items-center mb-6">
+                    <p class="text-2xl font-bold text-white">Edytuj Album</p>
+                    <div class="modal-close cursor-pointer z-50 bg-[#1f1f38] p-2 rounded-full hover:bg-[#3f3f6e] transition-colors" onclick="toggleEditModal()">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <form method="POST">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="action" value="edit_album">
+                    <input type="hidden" id="edit_album_id" name="album_id" value="">
+                    <div class="mb-5">
+                        <label class="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Nazwa wewnętrzna (Admin)</label>
+                        <input type="text" id="edit_internal_name" name="internal_name" required class="w-full bg-[#151525] border border-[#3f3f6e] rounded-xl p-3.5 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-gray-600">
+                    </div>
+                    <div class="mb-8">
+                        <label class="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Tytuł publiczny (Klient)</label>
+                        <input type="text" id="edit_public_title" name="public_title" required class="w-full bg-[#151525] border border-[#3f3f6e] rounded-xl p-3.5 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-gray-600">
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="toggleEditModal()" class="px-5 py-2.5 rounded-xl text-gray-400 font-semibold hover:bg-[#3f3f6e] transition-colors text-sm">Anuluj</button>
+                        <button type="submit" class="btn-primary px-6 py-2.5 text-white font-bold rounded-xl transition-transform transform active:scale-95 text-sm shadow-lg">Zapisz Zmiany</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const CSRF_TOKEN = '<?php echo get_csrf_token(); ?>';
         lucide.createIcons();
         
         document.addEventListener('DOMContentLoaded', () => {
@@ -443,7 +504,10 @@ try {
                 try {
                     await fetch('vault_api.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': CSRF_TOKEN
+                        },
                         body: JSON.stringify({ action: 'add_key', key_hex: hex, key_hash: hash })
                     });
                 } catch(e) { console.error("Błąd zapisu do bazy:", e); }
@@ -525,6 +589,55 @@ try {
             }
         }
 
+        function toggleEditModal() {
+            const body = document.querySelector('body');
+            const modal = document.querySelector('#editModal');
+            const modalContent = modal.querySelector('.modal-container');
+            
+            modal.classList.toggle('opacity-0');
+            modal.classList.toggle('pointer-events-none');
+            body.classList.toggle('modal-active');
+            
+            if (!modal.classList.contains('opacity-0')) {
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            } else {
+                modalContent.classList.remove('scale-100');
+                modalContent.classList.add('scale-95');
+            }
+        }
+
+        function openEditAlbumModal(id, internalName, publicTitle) {
+            document.getElementById('edit_album_id').value = id;
+            document.getElementById('edit_internal_name').value = internalName;
+            document.getElementById('edit_public_title').value = publicTitle;
+            toggleEditModal();
+        }
+
+        function copyAlbumShareLink(btn, slug, hash) {
+            const host = window.location.origin;
+            const path = window.location.pathname;
+            const projectRoot = path.substring(0, path.lastIndexOf('/admin/'));
+            let url = `${host}${projectRoot}/album.html?s=${slug}`;
+            const key = VAULT.keys[hash];
+            if (key) {
+                url += `#${key}`;
+            }
+            navigator.clipboard.writeText(url).then(() => {
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-400"></i>';
+                btn.title = key ? 'Skopiowano link z kluczem!' : 'Skopiowano link (brak klucza w sejfie)';
+                lucide.createIcons();
+                setTimeout(() => {
+                    btn.innerHTML = orig;
+                    btn.title = 'Kopiuj link dla klienta';
+                    lucide.createIcons();
+                }, 2000);
+            }).catch(e => {
+                prompt("Skopiuj link:", url);
+            });
+        }
+
         // Init Vault
         VAULT.init();
 
@@ -554,7 +667,7 @@ try {
             lucide.createIcons();
 
             try {
-                const response = await fetch('../api/get-all-selections.php');
+                const response = await fetch('../api/get_all_selections.php');
                 const result = await response.json();
 
                 if (result.status !== 'success') {

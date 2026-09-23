@@ -6,6 +6,25 @@ require_once '../api/db.php';
 $success = '';
 $error = '';
 
+// Obsługa pobierania kopii zapasowej bazy SQLite
+if (isset($_GET['action']) && $_GET['action'] === 'download_db') {
+    $dbFile = __DIR__ . '/../data/database.sqlite';
+    if (file_exists($dbFile)) {
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/x-sqlite3');
+        header('Content-Disposition: attachment; filename="photo_proofing_backup_' . date('Y-m-d_H-i-s') . '.sqlite"');
+        header('Content-Length: ' . filesize($dbFile));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        if (ob_get_level()) { ob_clean(); }
+        flush();
+        readfile($dbFile);
+        exit;
+    } else {
+        $error = 'Plik bazy danych nie istnieje.';
+    }
+}
+
 // Pobierz obecne ustawienia
 $stmt = $pdo->query("SELECT key, value FROM settings");
 $settings = [];
@@ -14,6 +33,7 @@ while ($row = $stmt->fetch()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token(true);
     try {
         $pdo->beginTransaction();
         
@@ -95,27 +115,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #1a1a2e; color: #e0e0e0; }
-        .card { background-color: #2c2c54; border: 1px solid #3f3f6e; border-radius: 1.5rem; padding: 2rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #131326; color: #e0e0e0; overflow-x: hidden; }
+        .dashboard-header { background-color: rgba(26, 26, 46, 0.92); backdrop-filter: blur(16px); border-bottom: 1px solid #2c2c54; }
+        .card { background: linear-gradient(145deg, rgba(38, 38, 72, 0.7) 0%, rgba(26, 26, 50, 0.85) 100%); backdrop-filter: blur(16px); border: 1px solid rgba(63, 63, 110, 0.7); border-radius: 1.5rem; padding: 2rem; box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5); }
         .input-field { background-color: #151525; border: 1px solid #3f3f6e; border-radius: 0.75rem; padding: 0.75rem 1rem; width: 100%; color: white; outline: none; transition: all 0.2s; }
         .input-field:focus { border-color: #06b6d4; box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2); }
-        .btn-save { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); transition: all 0.2s; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3); }
-        .btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(6, 182, 212, 0.4); }
+        .btn-save { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); transition: all 0.2s; box-shadow: 0 4px 14px rgba(6, 182, 212, 0.25); }
+        .btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(6, 182, 212, 0.45); }
+        .nav-btn { background-color: #2c2c54; transition: all 0.2s; border: 1px solid #3f3f6e; }
+        .nav-btn:hover { background-color: #3f3f6e; border-color: #4f4f8a; transform: translateY(-1px); }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-8">
-            <div class="flex items-center space-x-4">
-                <a href="index.php" class="p-2.5 bg-[#2c2c54] rounded-xl hover:bg-[#3f3f6e] transition-colors border border-[#3f3f6e]">
-                    <i data-lucide="arrow-left" class="w-5 h-5 text-gray-400"></i>
-                </a>
-                <div>
-                    <h1 class="text-2xl font-bold text-white">Ustawienia Systemu</h1>
-                    <p class="text-xs text-gray-400">Konfiguracja galerii, kontaktów i powiadomień</p>
+<body class="min-h-screen flex flex-col relative selection:bg-cyan-500 selection:text-white">
+    <!-- Ambient Glow Orbs -->
+    <div class="fixed -top-40 -left-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-[140px] pointer-events-none"></div>
+    <div class="fixed top-1/3 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
+
+    <!-- Unified Navbar -->
+    <header class="dashboard-header sticky top-0 z-40 w-full mb-6 shadow-xl">
+        <div class="container mx-auto px-4 py-3.5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3.5">
+                <div class="bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-cyan-500/20">
+                    <i data-lucide="settings" class="w-5 h-5 text-white"></i>
                 </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-bold text-white tracking-tight">Panel Administratora</h1>
+                        <span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-full">Konfiguracja</span>
+                    </div>
+                    <p class="text-xs text-gray-400 font-medium">Ustawienia Systemu i Galeria</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2.5 flex-wrap justify-center">
+                <a href="index.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Albumy
+                </a>
+
+                <a href="upload.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="upload-cloud" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Prześlij
+                </a>
+
+                <a href="diagnostics.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="activity" class="w-3.5 h-3.5 mr-1.5 text-green-400"></i> Diagnostyka
+                </a>
+
+                <a href="settings.php" class="btn-save text-white px-4 py-2 rounded-xl flex items-center text-xs font-semibold border border-cyan-400/30">
+                    <i data-lucide="settings" class="w-3.5 h-3.5 mr-1.5"></i> Ustawienia
+                </a>
+                
+                <a href="logout.php" class="ml-1 text-gray-400 hover:text-red-400 p-2 rounded-xl hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20" title="Wyloguj">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto px-4 w-full flex-grow pb-12 relative z-10">
+        <!-- Sub-header -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-2xl font-black text-white tracking-tight">Ustawienia Systemu</h2>
+                <p class="text-xs text-gray-400">Zarządzaj powiadomieniami Telegram, bezpieczeństwem Sejfu i parametrami galerii</p>
             </div>
         </div>
 
@@ -134,6 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="POST" class="space-y-6">
+            <?php echo csrf_field(); ?>
             <!-- Ogólne -->
             <div class="card">
                 <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -200,6 +263,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Chat ID</label>
                         <input type="text" name="telegram_chat_id" value="<?php echo htmlspecialchars($settings['TELEGRAM_CHAT_ID'] ?? ''); ?>" class="input-field text-sm font-mono">
                     </div>
+                </div>
+            </div>
+
+            <!-- Kopia Zapasowa Bazy Danych -->
+            <div class="card bg-gradient-to-r from-[#1c1c38] to-[#25254d] border border-cyan-500/20">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                            <i data-lucide="database" class="w-5 h-5 text-cyan-400"></i> Kopia Zapasowa Bazy Danych
+                        </h2>
+                        <p class="text-xs text-gray-400">Pobierz pełną kopię zapasową pliku bazy danych SQLite (albumy, zdjęcia, wybory klientów i sejf).</p>
+                    </div>
+                    <a href="settings.php?action=download_db" class="bg-[#3f3f6e] hover:bg-cyan-600 text-white px-5 py-3 rounded-xl transition-all shadow-md flex items-center text-sm font-semibold whitespace-nowrap border border-cyan-400/20 hover:border-cyan-400">
+                        <i data-lucide="download" class="w-4 h-4 mr-2"></i> Pobierz Kopię (.sqlite)
+                    </a>
                 </div>
             </div>
 

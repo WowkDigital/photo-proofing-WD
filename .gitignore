@@ -1,7 +1,15 @@
 photos/
 data/database.sqlite
+data/*.sqlite
 selection_logs/
-.DS_Store
-*.log
+backups/
 api/config.php
 .env
+*.log
+*.tmp
+test_cookie.txt
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.agents/

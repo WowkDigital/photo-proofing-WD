@@ -1,0 +1,121 @@
+<?php
+// api/save_selection.php
+require_once 'config.php';
+require_once 'db.php';
+require_once 'telegram_notify.php';
+
+// Wymagaj autoryzacji jeśli ochrona hasłem jest włączona
+if (defined('PASSWORD_PROTECTION_ENABLED') && PASSWORD_PROTECTION_ENABLED === true) {
+    require_once 'check_auth.php';
+}
+
+header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['status' => 'error', 'message' => 'Niedozwolona metoda.']);
+    exit;
+}
+
+// Ochrona przed floodowaniem (Rate-limiting per IP: max 2 zapisy w ciągu 10 sekund)
+$clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+try {
+    $stmtRate = $pdo->prepare("SELECT COUNT(*) FROM selections WHERE ip_address = ? AND selection_date > datetime('now', '-10 seconds')");
+    $stmtRate->execute([$clientIp]);
+    if ($stmtRate->fetchColumn() >= 2) {
+        http_response_code(429);
+        echo json_encode(['status' => 'error', 'message' => 'Zbyt częste wysyłanie formularza. Prosimy odczekać chwilę.']);
+        exit;
+    }
+} catch (Exception $e) {
+    // Ignoruj błąd sprawdzania limitu
+}
+
+$json_data = file_get_contents('php://input');
+$data = json_decode($json_data);
+
+if ($data === null || !isset($data->selectedFiles) || !isset($data->clientData)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Nieprawidłowe dane.']);
+    exit;
+}
+
+$albumSlug = $_GET['s'] ?? 'default';
+$stmtAlbum = $pdo->prepare("SELECT id, internal_name FROM albums WHERE slug = ?");
+$stmtAlbum->execute([$albumSlug]);
+$albumRow = $stmtAlbum->fetch();
+$albumId = $albumRow['id'] ?? null;
+$albumName = $albumRow['internal_name'] ?? 'Nieznany album';
+
+if (!$albumId) {
+    http_response_code(404);
+    echo json_encode(['status' => 'error', 'message' => 'Album nie istnieje.']);
+    exit;
+}
+
+// Logowanie do pliku (Backup)
+$log_directory = dirname(__DIR__) . '/selection_logs/';
+if (!is_dir($log_directory)) mkdir($log_directory, 0755, true);
+$log_file = $log_directory . 'selections.log';
+
+$clientData = $data->clientData;
+$selectedFiles = $data->selectedFiles;
+
+// Sanityzacja dla logu tekstowego
+$name = htmlspecialchars($clientData->name ?? 'Nie podano', ENT_QUOTES, 'UTF-8');
+$log_entry = date('Y-m-d H:i:s') . " - Klient: $name - Plików: " . count($selectedFiles) . "\n";
+file_put_contents($log_file, $log_entry, FILE_APPEND | LOCK_EX);
+
+// Zapis do bazy danych
+try {
+    $pdo->beginTransaction();
+
+    $stmt = $pdo->prepare("INSERT INTO selections (
+        client_name, client_email, client_phone, client_instagram, client_telegram, client_facebook, client_notes, ip_address, album_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+    $stmt->execute([
+        $clientData->name ?? '',
+        $clientData->email ?? '',
+        $clientData->phone ?? '',
+        $clientData->instagram ?? '',
+        $clientData->telegram ?? '',
+        $clientData->facebook ?? '',
+        $clientData->notes ?? '',
+        $_SERVER['REMOTE_ADDR'],
+        $albumId
+    ]);
+
+    $selectionId = $pdo->lastInsertId();
+
+    $stmtPhoto = $pdo->prepare("INSERT INTO selected_photos (selection_id, photo_filename) VALUES (?, ?)");
+
+    foreach ($selectedFiles as $filename) {
+        $stmtPhoto->execute([$selectionId, $filename]);
+    }
+
+    $pdo->commit();
+
+    $originalFiles = $data->originalFiles ?? $selectedFiles;
+
+    require_once 'logger.php';
+    Logger::info('Klient zapisał wybór zdjęć', [
+        'album' => $albumName,
+        'klient' => $clientData->name ?? '',
+        'ilosc' => count($selectedFiles),
+        'pliki' => $originalFiles
+    ]);
+
+    // Powiadomienie Telegram
+    sendTelegramNotification($albumName, $clientData, $originalFiles);
+
+    echo json_encode(['status' => 'success', 'message' => 'Wybór został zapisany w bazie.']);
+
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log("Błąd bazy danych: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Wystąpił błąd podczas zapisu do bazy.']);
+}

@@ -1,10 +1,27 @@
 <?php
-session_start();
-// Dołączamy plik konfiguracyjny
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    ]);
+    session_start();
+}
+// Sprawdzenie czy aplikacja została zainstalowana
+if (!file_exists(__DIR__ . '/api/config.php')) {
+    if (file_exists(__DIR__ . '/install.php')) {
+        header('Location: install.php');
+        exit;
+    }
+    die('Aplikacja nie została jeszcze skonfigurowana. Skontaktuj się z administratorem.');
+}
+
+// Dołączamy plik konfiguracyjny i moduł CSRF
 require_once 'api/config.php';
+require_once 'api/csrf.php';
 
 // Jeśli ochrona hasłem jest wyłączona, od razu przekieruj do albumu
-if (PASSWORD_PROTECTION_ENABLED === false) {
+if (defined('PASSWORD_PROTECTION_ENABLED') && PASSWORD_PROTECTION_ENABLED === false) {
     header('Location: album.html');
     exit;
 }
@@ -17,14 +34,46 @@ if (isset($_SESSION['is_logged_in']) && $_SESSION['is_logged_in'] === true) {
     exit;
 }
 
+$clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$rateKey = 'gallery_login_rate_' . md5($clientIp);
+$now = time();
+
+if (!isset($_SESSION[$rateKey])) {
+    $_SESSION[$rateKey] = ['count' => 0, 'locked_until' => 0];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!empty($_POST['password']) && $_POST['password'] === GALLERY_PASSWORD) {
-        $_SESSION['is_logged_in'] = true;
-        session_regenerate_id(true);
-        header('Location: album.html');
-        exit;
+    if ($_SESSION[$rateKey]['locked_until'] > $now) {
+        $remaining = $_SESSION[$rateKey]['locked_until'] - $now;
+        $error = "Zbyt wiele nieudanych prób logowania. Odczekaj {$remaining} sekund.";
+    } elseif (!verify_csrf_token(false)) {
+        $error = 'Sesja formularza wygasła. Odśwież stronę i spróbuj ponownie.';
     } else {
-        $error = 'Nieprawidłowe hasło.';
+        $inputPassword = $_POST['password'] ?? '';
+        $valid = false;
+        
+        if (defined('GALLERY_PASSWORD') && !empty($inputPassword)) {
+            // Obsługa zarówno hasha jak i czystego tekstu (kompatybilność wsteczna)
+            if (password_verify($inputPassword, GALLERY_PASSWORD) || $inputPassword === GALLERY_PASSWORD) {
+                $valid = true;
+            }
+        }
+
+        if ($valid) {
+            unset($_SESSION[$rateKey]);
+            session_regenerate_id(true);
+            $_SESSION['is_logged_in'] = true;
+            header('Location: album.html');
+            exit;
+        } else {
+            $_SESSION[$rateKey]['count']++;
+            if ($_SESSION[$rateKey]['count'] >= 8) {
+                $_SESSION[$rateKey]['locked_until'] = $now + 300; // 5 minut blokady
+                $error = 'Zbyt wiele prób. Dostęp zablokowany na 5 minut.';
+            } else {
+                $error = 'Nieprawidłowe hasło dostępu.';
+            }
+        }
     }
 }
 ?>
@@ -81,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Login Card -->
         <div class="glass-card p-8 shadow-2xl">
             <form method="POST" action="login.php" class="space-y-6">
+                <?php echo csrf_field(); ?>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Hasło dostępu</label>
                     <div class="relative">

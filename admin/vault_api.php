@@ -14,6 +14,7 @@ if (!isset($_SESSION['vault_key'])) {
 $vaultKey = hex2bin($_SESSION['vault_key']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token(true);
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 

@@ -41,7 +41,8 @@ try {
         client_notes TEXT,
         selection_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         ip_address TEXT,
-        album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL
+        album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL,
+        status TEXT DEFAULT 'new'
     )");
     echo "- Tabela 'selections' gotowa.\n";
 
@@ -97,6 +98,15 @@ try {
         $pdo->prepare("INSERT INTO settings (key, value) VALUES ('VAULT_SALT', ?)")->execute([$salt]);
         echo "- Sól sejfu została wygenerowana.\n";
     }
+
+    // 10. Indeksy wydajnościowe
+    $pdo->exec("
+        CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album_id);
+        CREATE INDEX IF NOT EXISTS idx_selections_album ON selections(album_id);
+        CREATE INDEX IF NOT EXISTS idx_selected_photos_sel ON selected_photos(selection_id);
+        CREATE INDEX IF NOT EXISTS idx_logs_created ON logs(created_at);
+    ");
+    echo "- Indeksy wydajnościowe gotowe.\n";
 
     $pdo->commit();
     echo "\nSUKCES: Baza danych została w pełni zainicjalizowana.\n";

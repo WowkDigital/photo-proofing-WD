@@ -13,6 +13,23 @@ if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     $action = $_GET['action'];
     
+    if ($action === 'delete_installer') {
+        verify_csrf_token(true);
+        $installerPath = __DIR__ . '/../install.php';
+        if (file_exists($installerPath)) {
+            if (@unlink($installerPath)) {
+                require_once '../api/logger.php';
+                Logger::action('Usunięto plik install.php przez panel diagnostyki');
+                echo json_encode(['status' => 'success', 'message' => 'Plik install.php został pomyślnie usunięty z serwera.']);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Nie udało się usunąć install.php (sprawdź uprawnienia zapisu na serwerze).']);
+            }
+        } else {
+            echo json_encode(['status' => 'info', 'message' => 'Plik install.php już nie istnieje.']);
+        }
+        exit;
+    }
+    
     if ($action === 'test_db_write') {
         try {
             $testName = "DIAG_TEST_" . time();
@@ -62,7 +79,6 @@ if (isset($_GET['action'])) {
                     @unlink($testFile);
                     throw new Exception("Nie udało się zapisać miniatury w photos/thumbnails/.");
                 }
-                imagedestroy($im);
             } else {
                 // Fallback jeśli brak GD
                 if (file_put_contents($testFile, "test_data") === false) throw new Exception("Nie udało się zapisać pliku w photos/.");
@@ -119,7 +135,7 @@ $gdAvailable = extension_loaded('gd');
 $dataDirWritable = is_writable('../data');
 $photosDirWritable = is_writable('../photos');
 $thumbsDirWritable = is_writable('../photos/thumbnails');
-$dbExists = file_exists('../api/database.sqlite');
+$dbExists = file_exists('../data/database.sqlite');
 
 // Pobierz ostatnie logi
 $recentLogs = [];
@@ -131,6 +147,7 @@ try {
 }
 
 $configExists = file_exists(__DIR__ . '/../api/config.php');
+$installerExists = file_exists(__DIR__ . '/../install.php');
 
 $maxUpload = ini_get('upload_max_filesize');
 $maxPost = ini_get('post_max_size');
@@ -146,9 +163,10 @@ $memoryLimit = ini_get('memory_limit');
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #1a1a2e; color: #e0e0e0; }
-        .card { background-color: #2c2c54; border: 1px solid #3f3f6e; border-radius: 1.5rem; padding: 1.5rem; transition: all 0.3s ease; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #131326; color: #e0e0e0; overflow-x: hidden; }
+        .dashboard-header { background-color: rgba(26, 26, 46, 0.92); backdrop-filter: blur(16px); border-bottom: 1px solid #2c2c54; }
+        .card { background: linear-gradient(145deg, rgba(38, 38, 72, 0.7) 0%, rgba(26, 26, 50, 0.85) 100%); backdrop-filter: blur(16px); border: 1px solid rgba(63, 63, 110, 0.7); border-radius: 1.5rem; padding: 1.5rem; transition: all 0.3s ease; }
         .card:hover { border-color: #4f4f8a; }
         .status-ok { color: #4ade80; }
         .status-error { color: #f87171; }
@@ -157,27 +175,68 @@ $memoryLimit = ini_get('memory_limit');
         .btn-action:hover:not(:disabled) { background-color: #4f4f8a; transform: translateY(-2px); border-color: rgba(255,255,255,0.1); }
         .btn-action:active:not(:disabled) { transform: translateY(0); }
         .glass-stat { background: rgba(255, 255, 255, 0.03); border-radius: 1rem; padding: 1rem; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .nav-btn { background-color: #2c2c54; transition: all 0.2s; border: 1px solid #3f3f6e; }
+        .nav-btn:hover { background-color: #3f3f6e; border-color: #4f4f8a; transform: translateY(-1px); }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#1a1a2e] to-[#16213e]">
-    <div class="max-w-5xl mx-auto">
-        <!-- Header -->
-        <div class="flex flex-col md:flex-row items-center justify-between mb-10 gap-6">
-            <div class="flex items-center space-x-5">
-                <a href="index.php" class="p-3 bg-[#2c2c54] rounded-2xl hover:bg-[#3f3f6e] transition-all shadow-lg group">
-                    <i data-lucide="arrow-left" class="w-6 h-6 text-gray-400 group-hover:text-white transition-colors"></i>
-                </a>
+<body class="min-h-screen flex flex-col relative selection:bg-cyan-500 selection:text-white">
+    <!-- Ambient Glow Orbs -->
+    <div class="fixed -top-40 -left-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-[140px] pointer-events-none"></div>
+    <div class="fixed top-1/3 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
+
+    <!-- Unified Navbar -->
+    <header class="dashboard-header sticky top-0 z-40 w-full mb-6 shadow-xl">
+        <div class="container mx-auto px-4 py-3.5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3.5">
+                <div class="bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-cyan-500/20">
+                    <i data-lucide="activity" class="w-5 h-5 text-white"></i>
+                </div>
                 <div>
-                    <h1 class="text-3xl font-bold text-white tracking-tight">Centrum Diagnostyczne</h1>
-                    <p class="text-gray-400 font-medium">Monitoring sprawności i integralności systemu</p>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-bold text-white tracking-tight">Panel Administratora</h1>
+                        <span class="bg-green-500/10 text-green-400 border border-green-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-full">Diagnostyka</span>
+                    </div>
+                    <p class="text-xs text-gray-400 font-medium">Monitoring sprawności systemu</p>
                 </div>
             </div>
+            
+            <div class="flex items-center gap-2.5 flex-wrap justify-center">
+                <a href="index.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Albumy
+                </a>
+
+                <a href="upload.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="upload-cloud" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Prześlij
+                </a>
+
+                <a href="diagnostics.php" class="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-xl flex items-center text-xs font-semibold border border-cyan-400/30 shadow-lg shadow-cyan-500/20">
+                    <i data-lucide="activity" class="w-3.5 h-3.5 mr-1.5"></i> Diagnostyka
+                </a>
+
+                <a href="settings.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="settings" class="w-3.5 h-3.5 mr-1.5 text-gray-400"></i> Ustawienia
+                </a>
+                
+                <a href="logout.php" class="ml-1 text-gray-400 hover:text-red-400 p-2 rounded-xl hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20" title="Wyloguj">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-5xl mx-auto px-4 w-full flex-grow pb-12 relative z-10">
+        <!-- Sub-header -->
+        <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
+            <div>
+                <h2 class="text-2xl font-black text-white tracking-tight">Centrum Diagnostyczne</h2>
+                <p class="text-xs text-gray-400">Testy uprawnień, łączności, integralności bazy SQLite i modułu powiadomień</p>
+            </div>
             <div class="flex gap-3">
-                <button onclick="runAllTests(this)" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-2xl transition-all flex items-center text-sm font-bold shadow-lg shadow-orange-500/20 group">
-                    <i data-lucide="play" class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform"></i> Testuj wszystko
+                <button onclick="runAllTests(this)" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl transition-all flex items-center text-xs font-bold shadow-lg shadow-orange-500/20 group">
+                    <i data-lucide="play" class="w-3.5 h-3.5 mr-1.5 group-hover:scale-110 transition-transform"></i> Testuj wszystko
                 </button>
-                <div class="bg-cyan-500/10 px-5 py-2.5 rounded-2xl border border-cyan-500/20 flex items-center">
-                    <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse mr-3"></div>
+                <div class="bg-cyan-500/10 px-4 py-2 rounded-xl border border-cyan-500/20 flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse mr-2.5"></div>
                     <span class="text-cyan-400 text-xs font-bold uppercase tracking-widest">System Online</span>
                 </div>
             </div>
@@ -202,6 +261,35 @@ $memoryLimit = ini_get('memory_limit');
                 <p class="text-lg font-bold text-orange-400"><?php echo $memoryLimit; ?></p>
             </div>
         </div>
+
+        <!-- Alert instalatora jeśli nadal istnieje -->
+        <?php if ($installerExists): ?>
+        <div class="card mb-6 border-amber-500/40 bg-amber-500/5">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-start space-x-3.5">
+                    <div class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl mt-0.5">
+                        <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>Zalecenie Bezpieczeństwa: Plik instalatora nadal istnieje</span>
+                            <span class="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Wysoki priorytet</span>
+                        </h3>
+                        <p class="text-xs text-gray-400 mt-1 max-w-2xl leading-relaxed">
+                            W głównym katalogu aplikacji wykryto plik <code class="text-amber-300">install.php</code>. Pozostawienie go na serwerze produkcyjnym stwarza ryzyko nieautoryzowanej rekonfiguracji instancji w przypadku usunięcia pliku konfiguracyjnego.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex-shrink-0 w-full md:w-auto">
+                    <button onclick="deleteInstaller(this)" class="w-full md:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span>Usuń install.php teraz</span>
+                    </button>
+                </div>
+            </div>
+            <div id="res-installer-delete" class="mt-4 p-3 rounded-xl text-xs hidden"></div>
+        </div>
+        <?php endif; ?>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Environment -->
@@ -228,6 +316,10 @@ $memoryLimit = ini_get('memory_limit');
                     <li class="flex justify-between items-center p-2 rounded-lg hover:bg-white/5 transition-colors">
                         <span class="text-gray-400">Baza danych</span>
                         <?php echo $dbExists ? '<span class="status-ok font-semibold">Połączono</span>' : '<span class="status-error font-semibold">Brak pliku</span>'; ?>
+                    </li>
+                    <li class="flex justify-between items-center p-2 rounded-lg hover:bg-white/5 transition-colors">
+                        <span class="text-gray-400">Instalator</span>
+                        <?php echo !$installerExists ? '<span class="status-ok font-semibold text-xs flex items-center gap-1"><i data-lucide="shield-check" class="w-4 h-4"></i> Usunięty</span>' : '<span class="status-warning font-semibold text-xs flex items-center gap-1"><i data-lucide="shield-alert" class="w-4 h-4"></i> Aktywny</span>'; ?>
                     </li>
                 </ul>
             </div>
@@ -437,6 +529,43 @@ $memoryLimit = ini_get('memory_limit');
 
             btn.disabled = false;
             btn.innerHTML = originalContent;
+            lucide.createIcons();
+        }
+
+        async function deleteInstaller(btn) {
+            if (!confirm('Czy na pewno chcesz usunąć plik install.php z serwera?')) return;
+            const resDiv = document.getElementById('res-installer-delete');
+            const originalContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Usuwanie...</span>';
+            lucide.createIcons();
+
+            try {
+                const formData = new FormData();
+                formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+                const response = await fetch('diagnostics.php?action=delete_installer', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                resDiv.classList.remove('hidden');
+                if (data.status === 'success') {
+                    resDiv.className = 'mt-4 p-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs flex items-center gap-2';
+                    resDiv.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i> <span>${data.message}</span>`;
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    resDiv.className = 'mt-4 p-3 bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-xs flex items-center gap-2';
+                    resDiv.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4"></i> <span>${data.message}</span>`;
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
+            } catch (e) {
+                resDiv.classList.remove('hidden');
+                resDiv.className = 'mt-4 p-3 bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-xs flex items-center gap-2';
+                resDiv.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4"></i> <span>Błąd: ${e.message}</span>`;
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
             lucide.createIcons();
         }
     </script>

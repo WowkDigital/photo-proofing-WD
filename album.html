@@ -440,7 +440,19 @@
             class="sticky top-0 z-20 bg-[#1a1a2e] bg-opacity-90 backdrop-blur-sm p-4 rounded-b-xl shadow-lg mb-6 flex flex-wrap items-center justify-between gap-y-3">
             <h1 id="album-title" class="text-2xl sm:text-3xl font-bold w-full text-center sm:w-auto sm:text-left">
                 Ładowanie...</h1>
-            <div class="w-full sm:w-auto flex items-center justify-center sm:justify-end gap-x-6">
+            <div class="w-full sm:w-auto flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-x-6">
+                <!-- Filtr galerii -->
+                <div class="flex items-center bg-[#242446] p-1 rounded-full border border-gray-700/60 shadow-inner">
+                    <button id="filter-all-btn" class="px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 bg-cyan-600 text-white shadow">
+                        <i data-lucide="images" class="w-3.5 h-3.5"></i>
+                        <span>Wszystkie (<span id="filter-count-all">0</span>)</span>
+                    </button>
+                    <button id="filter-selected-btn" class="px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 text-gray-400 hover:text-white">
+                        <i data-lucide="check-circle" class="w-3.5 h-3.5 text-green-400"></i>
+                        <span>⭐ Wybrane (<span id="filter-count-selected">0</span>)</span>
+                    </button>
+                </div>
+
                 <div id="main-layout-controls"
                     class="layout-controls-group flex items-center space-x-1 bg-gray-700/50 p-1 rounded-full"
                     title="Zmień liczbę kolumn">
@@ -462,6 +474,13 @@
                 </div>
             </div>
         </header>
+
+        <!-- Komunikat braku zdjęć po włączeniu filtra 'Tylko wybrane' -->
+        <div id="filter-empty-message" class="hidden text-center py-16 bg-[#242446]/40 rounded-2xl border border-dashed border-gray-700 my-4">
+            <i data-lucide="sparkles" class="w-10 h-10 text-cyan-400 mx-auto mb-3 opacity-60"></i>
+            <h3 class="text-lg font-bold text-white mb-1">Brak zaznaczonych kadrów</h3>
+            <p class="text-gray-400 text-sm max-w-md mx-auto">Nie masz jeszcze zaznaczonego żadnego zdjęcia. Kliknij ikonę ptaszka (✓) na zdjęciu w galerii, aby dodać je do swoich ulubionych.</p>
+        </div>
 
         <main id="photo-gallery" class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4"></main>
 
@@ -793,9 +812,11 @@
             const urlParams = new URLSearchParams(window.location.search);
             const albumSlug = urlParams.get('s') || 'default';
             let photos = [];
+            let currentFilter = 'all'; // 'all' lub 'selected'
             let currentPhotoIndex = -1;
             let decryptionKey = null;
             const decryptedCache = new Map();
+            const fullImageCache = new Map(); // Ograniczony bufor dla pełnych zdjęć (max 6)
             const decryptionPromises = new Map();
 
             // --- SEKCJA: LOGIKA SZYFROWANIA (DEKRYPCJI) ---
@@ -816,7 +837,10 @@
             async function decryptImage(url, key) {
                 if (!key) throw new Error("Klucz deszyfrujący nie jest ustawiony.");
 
-                if (decryptedCache.has(url)) return decryptedCache.get(url);
+                const isFull = url.includes('type=full');
+                const targetCache = isFull ? fullImageCache : decryptedCache;
+
+                if (targetCache.has(url)) return targetCache.get(url);
                 if (decryptionPromises.has(url)) return decryptionPromises.get(url);
 
                 const promise = (async () => {
@@ -833,7 +857,17 @@
                         const blob = new Blob([decryptedBuffer], { type: "image/jpeg" });
                         const objectUrl = URL.createObjectURL(blob);
 
-                        decryptedCache.set(url, objectUrl);
+                        if (isFull) {
+                            // Kontrola pamięci RAM: ograniczenie liczby pełnowymiarowych kadrów w pamięci
+                            if (fullImageCache.size >= 6) {
+                                const oldestKey = fullImageCache.keys().next().value;
+                                const oldUrl = fullImageCache.get(oldestKey);
+                                if (oldUrl) URL.revokeObjectURL(oldUrl);
+                                fullImageCache.delete(oldestKey);
+                            }
+                        }
+
+                        targetCache.set(url, objectUrl);
                         return objectUrl;
                     } finally {
                         decryptionPromises.delete(url);
@@ -913,7 +947,7 @@
                 lucide.createIcons();
 
                 try {
-                    const response = await fetch(`api/save-selection.php?s=${albumSlug}`, {
+                    const response = await fetch(`api/save_selection.php?s=${albumSlug}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -1070,9 +1104,43 @@
             }
 
 
+            function applyGalleryFilter() {
+                const filterEmptyMsg = document.getElementById('filter-empty-message');
+                const selectedCount = photos.filter(p => p.selected).length;
+
+                document.querySelectorAll('.photo-card').forEach(card => {
+                    const id = parseInt(card.dataset.id, 10);
+                    const photo = photos.find(p => p.id === id);
+                    if (currentFilter === 'selected') {
+                        if (photo && photo.selected) {
+                            card.style.display = '';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    } else {
+                        card.style.display = '';
+                    }
+                });
+
+                if (currentFilter === 'selected' && selectedCount === 0) {
+                    if (filterEmptyMsg) filterEmptyMsg.classList.remove('hidden');
+                    gallery.classList.add('hidden');
+                } else {
+                    if (filterEmptyMsg) filterEmptyMsg.classList.add('hidden');
+                    gallery.classList.remove('hidden');
+                }
+            }
+
             function updateSelectedCount() {
                 const count = photos.filter(p => p.selected).length;
                 selectedCountElement.textContent = count;
+                
+                const filterCountAll = document.getElementById('filter-count-all');
+                const filterCountSelected = document.getElementById('filter-count-selected');
+                if (filterCountAll) filterCountAll.textContent = photos.length;
+                if (filterCountSelected) filterCountSelected.textContent = count;
+
+                applyGalleryFilter();
                 validateFormAndToggleButton(); // Walidator sprawdza wszystko
             }
 
@@ -1161,8 +1229,17 @@
 
             function closeLightbox() {
                 lightbox.element.style.display = 'none';
+                if (lightbox.img.src && lightbox.img.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(lightbox.img.src);
+                }
                 lightbox.img.src = '';
                 document.removeEventListener('keydown', handleKeydown);
+
+                // Zwolnij zasoby ciężkich zdjęć z RAM
+                for (const [key, objUrl] of fullImageCache.entries()) {
+                    URL.revokeObjectURL(objUrl);
+                }
+                fullImageCache.clear();
 
                 if (currentPhotoIndex >= 0 && photos[currentPhotoIndex]) {
                     const lastViewedPhotoId = photos[currentPhotoIndex].id;
@@ -1365,6 +1442,25 @@
             }
 
             function initializeEventListeners() {
+                const filterAllBtn = document.getElementById('filter-all-btn');
+                const filterSelectedBtn = document.getElementById('filter-selected-btn');
+
+                if (filterAllBtn && filterSelectedBtn) {
+                    filterAllBtn.addEventListener('click', () => {
+                        currentFilter = 'all';
+                        filterAllBtn.className = "px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 bg-cyan-600 text-white shadow";
+                        filterSelectedBtn.className = "px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 text-gray-400 hover:text-white";
+                        applyGalleryFilter();
+                    });
+
+                    filterSelectedBtn.addEventListener('click', () => {
+                        currentFilter = 'selected';
+                        filterSelectedBtn.className = "px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 bg-green-600 text-white shadow";
+                        filterAllBtn.className = "px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 text-gray-400 hover:text-white";
+                        applyGalleryFilter();
+                    });
+                }
+
                 passwordModal.form.addEventListener('submit', (e) => {
                     e.preventDefault();
                     const key = passwordModal.input.value.trim();

@@ -12,6 +12,11 @@ define('THUMBS_DIR', __DIR__ . '/../photos/thumbnails/');
 if (!is_dir(UPLOADS_DIR)) mkdir(UPLOADS_DIR, 0755, true);
 if (!is_dir(THUMBS_DIR)) mkdir(THUMBS_DIR, 0755, true);
 
+// --- Weryfikacja CSRF dla żądań POST ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token(true);
+}
+
 // --- API: Tworzenie albumu (AJAX) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_album_ajax') {
     header('Content-Type: application/json');
@@ -63,11 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         $originalName = $_POST['original_filename'];
         $prefix = $_POST['sequence_prefix'];
 
-        // Generujemy losową nazwę pliku z cyfr dla anonimowości
+        // Generujemy losową nazwę pliku z cyfr dla anonimowości (bezpieczny generator CSPRNG)
         do {
             $randomNumbers = '';
             for ($i = 0; $i < 15; $i++) {
-                $randomNumbers .= mt_rand(0, 9);
+                $randomNumbers .= random_int(0, 9);
             }
             $finalFilename = $randomNumbers . '.enc';
             $mainPath = UPLOADS_DIR . $finalFilename;
@@ -89,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         echo json_encode(['success' => true, 'final_size' => filesize($mainPath)]);
 
     } catch (Throwable $e) {
+        error_log('Upload error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         send_json_error('Błąd serwera: ' . $e->getMessage(), 500);
     }
     exit;
@@ -105,185 +111,361 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Uploader - Admin Panel</title>
+    <title>Bezpieczny Uploader ZKA - Panel Administratora</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/exifreader@4.21.1/dist/exif-reader.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #1a1a2e;
+            background-color: #131326;
             color: #e0e0e0;
+            overflow-x: hidden;
         }
 
         .dashboard-header {
-            background-color: rgba(26, 26, 46, 0.95);
-            backdrop-filter: blur(10px);
+            background-color: rgba(26, 26, 46, 0.92);
+            backdrop-filter: blur(16px);
             border-bottom: 1px solid #2c2c54;
         }
 
         .card {
-            background-color: #2c2c54;
-            border: 1px solid #3f3f6e;
+            background: linear-gradient(145deg, rgba(38, 38, 72, 0.7) 0%, rgba(26, 26, 50, 0.85) 100%);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(63, 63, 110, 0.7);
             border-radius: 1.5rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
         }
 
         .btn-primary {
             background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-            box-shadow: 0 4px 6px -1px rgba(6, 182, 212, 0.2);
-            transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(6, 182, 212, 0.25);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .btn-primary:hover:not(:disabled) {
-            box-shadow: 0 6px 8px -1px rgba(6, 182, 212, 0.3);
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.45);
             transform: translateY(-1px);
         }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        #imageInput { display: none; }
-        #drop-zone { border: 2px dashed #3f3f6e; transition: all 0.3s ease; background: rgba(255,255,255,0.02); }
-        #drop-zone.drag-over { border-color: #06b6d4; background-color: rgba(6, 182, 212, 0.1); }
-        .thumbnail-item { position: relative; animation: fadeIn 0.3s ease-out; }
-        .thumbnail-remove-btn { position: absolute; top: -0.5rem; right: -0.5rem; background-color: #ef4444; color: white; width: 24px; height: 24px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; border: 2px solid #1f2937; opacity: 0; transition: opacity 0.2s ease; transform: scale(0.9); z-index: 10; }
-        .thumbnail-item:hover .thumbnail-remove-btn { opacity: 1; transform: scale(1); }
-        
-        input[type="text"], input[type="number"], select {
-            background-color: #151525;
-            border: 1px solid #3f3f6e;
-            color: white;
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .nav-btn {
+            background-color: #2c2c54;
             transition: all 0.2s;
+            border: 1px solid #3f3f6e;
         }
-        input[type="text"]:focus, input[type="number"]:focus, select:focus {
-            border-color: #06b6d4;
-            ring: 2px;
-            ring-color: rgba(6, 182, 212, 0.2);
-            outline: none;
+
+        .nav-btn:hover {
+            background-color: #3f3f6e;
+            border-color: #4f4f8a;
+            transform: translateY(-1px);
         }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.35s ease-out forwards; }
+        
+        #imageInput { display: none; }
+        
+        #drop-zone { 
+            border: 2px dashed rgba(6, 182, 212, 0.35); 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            background: radial-gradient(circle at 50% 30%, rgba(6, 182, 212, 0.05) 0%, rgba(21, 21, 42, 0.6) 100%);
+        }
+        
+        #drop-zone:hover, #drop-zone.drag-over { 
+            border-color: #06b6d4; 
+            background: radial-gradient(circle at 50% 30%, rgba(6, 182, 212, 0.12) 0%, rgba(21, 21, 42, 0.8) 100%);
+            box-shadow: 0 0 35px rgba(6, 182, 212, 0.18);
+        }
+        
+        .thumbnail-item { position: relative; animation: fadeIn 0.3s ease-out; }
+        .thumbnail-remove-btn { 
+            position: absolute; 
+            top: -0.4rem; 
+            right: -0.4rem; 
+            background-color: #ef4444; 
+            color: white; 
+            width: 22px; 
+            height: 22px; 
+            border-radius: 9999px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 13px;
+            font-weight: bold; 
+            cursor: pointer; 
+            border: 2px solid #1a1a2e; 
+            opacity: 0; 
+            transition: all 0.2s ease; 
+            transform: scale(0.85); 
+            z-index: 10; 
+        }
+        .thumbnail-item:hover .thumbnail-remove-btn { opacity: 1; transform: scale(1); }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #151525; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f6e; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
-    <!-- Navbar -->
-    <header class="dashboard-header sticky top-0 z-40 w-full mb-4">
-        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <a href="index.php" class="bg-gradient-to-br from-cyan-500 to-blue-600 p-2 rounded-lg shadow-lg hover:scale-105 transition-transform">
-                    <i data-lucide="arrow-left" class="w-5 h-5 text-white"></i>
-                </a>
-                <h1 class="text-lg font-bold text-white tracking-tight">Uploader</h1>
+<body class="min-h-screen flex flex-col relative selection:bg-cyan-500 selection:text-white">
+    <!-- Ambient Glow Orbs -->
+    <div class="fixed -top-40 -left-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-[140px] pointer-events-none"></div>
+    <div class="fixed top-1/3 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
+    <div class="fixed -bottom-40 left-1/3 w-96 h-96 bg-purple-600/10 rounded-full blur-[140px] pointer-events-none"></div>
+
+    <!-- Unified Navbar -->
+    <header class="dashboard-header sticky top-0 z-40 w-full mb-6 shadow-xl">
+        <div class="container mx-auto px-4 py-3.5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3.5">
+                <div class="bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-cyan-500/20">
+                    <i data-lucide="upload-cloud" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-bold text-white tracking-tight">Panel Administratora</h1>
+                        <span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-full">ZKA v2.0</span>
+                    </div>
+                    <p class="text-xs text-gray-400 font-medium">Bezpieczny Uploader Zdjęć</p>
+                </div>
             </div>
-            <div id="statusMessage" class="text-cyan-400 text-xs font-medium"></div>
+            
+            <div class="flex items-center gap-2.5 flex-wrap justify-center">
+                <a href="index.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Albumy
+                </a>
+
+                <a href="upload.php" class="btn-primary text-white px-4 py-2 rounded-xl flex items-center text-xs font-semibold border border-cyan-400/30">
+                    <i data-lucide="upload-cloud" class="w-3.5 h-3.5 mr-1.5"></i> Prześlij
+                </a>
+
+                <a href="diagnostics.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="activity" class="w-3.5 h-3.5 mr-1.5 text-green-400"></i> Diagnostyka
+                </a>
+
+                <a href="settings.php" class="nav-btn text-gray-200 px-4 py-2 rounded-xl flex items-center text-xs font-semibold">
+                    <i data-lucide="settings" class="w-3.5 h-3.5 mr-1.5 text-gray-400"></i> Ustawienia
+                </a>
+                
+                <a href="logout.php" class="ml-1 text-gray-400 hover:text-red-400 p-2 rounded-xl hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20" title="Wyloguj">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </a>
+            </div>
         </div>
     </header>
 
-    <div class="container mx-auto px-4 max-w-5xl flex-grow pb-8">
-        <div class="card p-4 md:p-6">
+    <div class="container mx-auto px-4 max-w-5xl flex-grow pb-12 relative z-10">
+        <!-- Sub-hero title bar -->
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-3">
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                        <i data-lucide="shield-check" class="w-3 h-3"></i> Szyfrowanie po stronie klienta (AES-GCM 256-bit)
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                        <i data-lucide="cpu" class="w-3 h-3"></i> Sony ARW + JPG
+                    </span>
+                </div>
+                <h2 class="text-2xl font-black text-white tracking-tight">Wgrywanie i Szyfrowanie Zdjęć</h2>
+                <p class="text-xs text-gray-400">Wszystkie zdjęcia są lokalnie skalowane i szyfrowane w przeglądarce przed transmisją na serwer.</p>
+            </div>
+            <div id="statusMessage" class="text-cyan-400 text-xs font-semibold px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 empty:hidden"></div>
+        </div>
+
+        <div class="card p-5 md:p-7 relative overflow-hidden">
             <div id="formContainer">
-                <form id="uploadForm" novalidate class="space-y-4">
+                <form id="uploadForm" novalidate class="space-y-6">
                     
-                    <div class="grid md:grid-cols-2 gap-4">
-                        <!-- SEKCJA: WYBÓR ALBUMU -->
-                        <div class="bg-[#151525] p-4 rounded-xl border border-[#3f3f6e] relative overflow-hidden group">
-                            <h3 class="text-sm font-bold text-white mb-3 flex items-center">
-                                <i data-lucide="folder" class="w-4 h-4 text-cyan-400 mr-2"></i>
-                                Miejsce Docelowe
-                            </h3>
-                            
-                            <div class="space-y-3 relative z-10">
-                                <div class="flex flex-col space-y-2">
-                                    <label class="flex items-center space-x-2 cursor-pointer group text-xs">
-                                        <input type="radio" name="album_mode" value="existing" <?php echo empty($albums) ? '' : 'checked'; ?> class="w-4 h-4 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e]">
-                                        <span class="text-gray-400 group-hover:text-white">Istniejący Album</span>
+                    <!-- KROK 1: MIEJSCE DOCELOWE & BEZPIECZEŃSTWO -->
+                    <div class="grid md:grid-cols-2 gap-5">
+                        
+                        <!-- KARTA 1: MIEJSCE DOCELOWE -->
+                        <div class="bg-[#15152a]/70 p-5 rounded-2xl border border-[#3f3f6e] flex flex-col justify-between relative group">
+                            <div>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-bold text-white flex items-center">
+                                        <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 mr-2.5 border border-cyan-500/20">
+                                            <i data-lucide="folder" class="w-4 h-4"></i>
+                                        </div>
+                                        Miejsce Docelowe
+                                    </h3>
+                                    <span class="text-[10px] text-gray-400 font-medium">Krok 1/2</span>
+                                </div>
+                                
+                                <!-- Segmented Card Radios -->
+                                <div class="grid grid-cols-2 gap-2 mb-3.5">
+                                    <label id="label-album-existing" class="flex items-center justify-center p-2.5 rounded-xl border border-cyan-500 bg-cyan-950/20 text-white cursor-pointer transition-all text-xs font-semibold gap-2 shadow-sm">
+                                        <input type="radio" name="album_mode" value="existing" <?php echo empty($albums) ? '' : 'checked'; ?> class="sr-only">
+                                        <i data-lucide="folder-check" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Istniejący</span>
                                     </label>
-                                    <select id="existingAlbumSelect" class="w-full rounded-lg p-2 text-xs font-medium outline-none">
-                                        <?php if(empty($albums)): ?><option value="">Brak albumów</option><?php endif; ?>
-                                        <?php foreach ($albums as $a): ?>
-                                            <option value="<?php echo $a['id']; ?>" data-slug="<?php echo $a['slug']; ?>" data-key-hash="<?php echo htmlspecialchars($a['encryption_key_hash'] ?? ''); ?>" <?php echo $a['id'] == $preselectedAlbumId ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($a['internal_name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <label id="label-album-new" class="flex items-center justify-center p-2.5 rounded-xl border border-[#3f3f6e] bg-[#1a1a32]/60 text-gray-400 hover:text-white cursor-pointer transition-all text-xs font-semibold gap-2">
+                                        <input type="radio" name="album_mode" value="new" <?php echo empty($albums) ? 'checked' : ''; ?> class="sr-only">
+                                        <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Nowy album</span>
+                                    </label>
                                 </div>
 
-                                <div class="border-t border-[#3f3f6e] my-2"></div>
+                                <!-- Istniejący Album Select -->
+                                <div id="existingAlbumContainer" class="space-y-1.5">
+                                    <label for="existingAlbumSelect" class="text-[11px] font-semibold text-gray-400">Wybierz album:</label>
+                                    <div class="relative">
+                                        <select id="existingAlbumSelect" class="w-full rounded-xl p-2.5 pr-8 text-xs font-medium bg-[#1a1a32] border border-[#3f3f6e] text-white focus:border-cyan-500 outline-none transition-all appearance-none cursor-pointer">
+                                            <?php if(empty($albums)): ?><option value="">Brak albumów w bazie</option><?php endif; ?>
+                                            <?php foreach ($albums as $a): ?>
+                                                <option value="<?php echo $a['id']; ?>" data-slug="<?php echo $a['slug']; ?>" data-key-hash="<?php echo htmlspecialchars($a['encryption_key_hash'] ?? ''); ?>" <?php echo $a['id'] == $preselectedAlbumId ? 'selected' : ''; ?>>
+                                                    📁 <?php echo htmlspecialchars($a['internal_name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                <div class="flex flex-col space-y-2">
-                                    <label class="flex items-center space-x-2 cursor-pointer group text-xs">
-                                        <input type="radio" name="album_mode" value="new" <?php echo empty($albums) ? 'checked' : ''; ?> class="w-4 h-4 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e]">
-                                        <span class="text-gray-400 group-hover:text-white">Nowy Album</span>
-                                    </label>
-                                    <div id="newAlbumInputs" class="grid grid-cols-2 gap-2 <?php echo empty($albums) ? '' : 'opacity-30 pointer-events-none'; ?>">
-                                        <input type="text" id="newInternalName" name="new_internal_name" placeholder="Nazwa w panelu" class="w-full rounded-lg p-2 text-xs font-medium">
-                                        <input type="text" id="newPublicTitle" name="new_public_title" placeholder="Tytuł dla klienta" class="w-full rounded-lg p-2 text-xs font-medium">
+                                <!-- Nowy Album Inputs -->
+                                <div id="newAlbumInputs" class="space-y-2 mt-2 <?php echo empty($albums) ? '' : 'hidden opacity-0'; ?> transition-all">
+                                    <div>
+                                        <label for="newInternalName" class="text-[11px] font-semibold text-gray-400">Nazwa robocza (widoczna w panelu):</label>
+                                        <input type="text" id="newInternalName" name="new_internal_name" placeholder="np. Sesja Ani i Piotra" class="w-full rounded-xl p-2.5 text-xs font-medium bg-[#1a1a32] border border-[#3f3f6e] text-white focus:border-cyan-500 outline-none mt-1">
+                                    </div>
+                                    <div>
+                                        <label for="newPublicTitle" class="text-[11px] font-semibold text-gray-400">Tytuł publiczny (widoczny dla klienta):</label>
+                                        <input type="text" id="newPublicTitle" name="new_public_title" placeholder="np. Ania & Piotr - Ślub 2026" class="w-full rounded-xl p-2.5 text-xs font-medium bg-[#1a1a32] border border-[#3f3f6e] text-white focus:border-cyan-500 outline-none mt-1">
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- SEKCJA: KLUCZ SZYFROWANIA -->
-                        <div class="bg-[#151525] p-4 rounded-xl border border-[#3f3f6e] relative overflow-hidden group">
-                            <h3 class="text-sm font-bold text-white mb-3 flex items-center">
-                                <i data-lucide="key" class="w-4 h-4 text-purple-400 mr-2"></i>
-                                Bezpieczeństwo
-                            </h3>
-                            <div class="space-y-3 relative z-10">
-                                <label class="flex items-center space-x-2 cursor-pointer group text-xs">
-                                    <input type="radio" name="key_mode" value="new" checked class="w-4 h-4 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e]">
-                                    <span class="text-gray-400 group-hover:text-white">Wygeneruj nowy klucz</span>
-                                </label>
-                                <div class="flex flex-col space-y-2">
-                                    <label class="flex items-center space-x-2 cursor-pointer group text-xs">
-                                        <input type="radio" name="key_mode" value="existing" class="w-4 h-4 text-cyan-600 bg-[#1a1a2e] border-[#3f3f6e]">
-                                        <span class="text-gray-400 group-hover:text-white">Użyj własnego klucza</span>
+                        <!-- KARTA 2: BEZPIECZEŃSTWO -->
+                        <div class="bg-[#15152a]/70 p-5 rounded-2xl border border-[#3f3f6e] flex flex-col justify-between relative group">
+                            <div>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-bold text-white flex items-center">
+                                        <div class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 mr-2.5 border border-purple-500/20">
+                                            <i data-lucide="key" class="w-4 h-4"></i>
+                                        </div>
+                                        Bezpieczeństwo (ZKA)
+                                    </h3>
+                                    <span class="text-[10px] text-gray-400 font-medium">Krok 2/2</span>
+                                </div>
+                                
+                                <!-- Segmented Card Radios -->
+                                <div class="grid grid-cols-2 gap-2 mb-3.5">
+                                    <label id="label-key-new" class="flex items-center justify-center p-2.5 rounded-xl border border-cyan-500 bg-cyan-950/20 text-white cursor-pointer transition-all text-xs font-semibold gap-2 shadow-sm">
+                                        <input type="radio" name="key_mode" value="new" checked class="sr-only">
+                                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Nowy klucz</span>
                                     </label>
-                                    <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="64 znaki hex..." class="w-full rounded-lg p-2 text-[10px] text-cyan-400 font-mono outline-none opacity-30 pointer-events-none">
-                                    <p id="vaultKeyHint" class="text-[10px] text-green-400 font-medium hidden flex items-center gap-1">
-                                        <i data-lucide="shield-check" class="w-3 h-3"></i> Klucz automatycznie pobrany z Twojego Sejfu
-                                    </p>
+                                    <label id="label-key-existing" class="flex items-center justify-center p-2.5 rounded-xl border border-[#3f3f6e] bg-[#1a1a32]/60 text-gray-400 hover:text-white cursor-pointer transition-all text-xs font-semibold gap-2">
+                                        <input type="radio" name="key_mode" value="existing" class="sr-only">
+                                        <i data-lucide="lock" class="w-3.5 h-3.5 text-purple-400"></i>
+                                        <span>Własny HEX</span>
+                                    </label>
+                                </div>
+
+                                <div id="keyModeExplanation" class="text-[11px] text-gray-400 leading-relaxed mb-3">
+                                    <span id="keyModeNewText" class="flex items-center gap-1.5 text-gray-300">
+                                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
+                                        Automatycznie wygeneruje unikalny 256-bitowy klucz AES i zapisze go w Twoim Sejfie.
+                                    </span>
+                                </div>
+
+                                <div id="existingKeyContainer" class="space-y-1.5 hidden opacity-0 transition-all">
+                                    <label for="existingKeyInput" class="text-[11px] font-semibold text-gray-400">Klucz szyfrowania (64 znaki hex):</label>
+                                    <div class="relative">
+                                        <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="Wklej 64-znakowy hex..." class="w-full rounded-xl p-2.5 text-xs text-cyan-400 font-mono bg-[#1a1a32] border border-[#3f3f6e] focus:border-cyan-500 outline-none">
+                                    </div>
+                                </div>
+
+                                <div id="vaultKeyHint" class="hidden p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium flex items-center gap-2.5 mt-2">
+                                    <i data-lucide="shield-check" class="w-4 h-4 shrink-0 text-emerald-400"></i>
+                                    <span>Klucz dopasowany i pobrany z Twojego Sejfu!</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- DROP ZONE -->
-                    <div id="drop-zone" class="w-full text-center py-6 px-4 rounded-2xl cursor-pointer hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group">
-                        <div class="bg-[#1a1a2e] w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 border border-[#3f3f6e] group-hover:scale-110 transition-transform">
-                            <i data-lucide="image-plus" class="w-6 h-6 text-cyan-400"></i>
+                    <!-- KROK 2: DROP ZONE -->
+                    <div id="drop-zone" class="w-full text-center py-10 px-6 rounded-3xl cursor-pointer transition-all group relative overflow-hidden">
+                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.35)] transition-all">
+                            <i data-lucide="upload-cloud" class="w-8 h-8 text-cyan-400"></i>
                         </div>
-                        <p class="text-sm font-bold text-white mb-1">Przeciągnij zdjęcia tutaj</p>
-                        <p class="text-[10px] text-gray-500 mb-4">JPG, PNG lub ARW (RAW)</p>
+                        <h4 class="text-base md:text-lg font-bold text-white mb-1.5 tracking-tight">Przeciągnij i upuść zdjęcia tutaj</h4>
+                        <p class="text-xs text-gray-400 mb-4 max-w-md mx-auto">Obsługuje surowe pliki RAW z aparatów cyfrowych oraz standardowe obrazy rastrowe.</p>
                         
-                        <label for="imageInput" class="inline-flex items-center bg-[#2c2c54] hover:bg-[#3f3f6e] text-white font-bold py-2 px-6 rounded-xl transition-all cursor-pointer text-xs border border-[#3f3f6e]">
-                            <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Wybierz pliki
+                        <div class="flex flex-wrap items-center justify-center gap-2 mb-6">
+                            <span class="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#252548] border border-[#3f3f6e] text-purple-300">RAW (.ARW)</span>
+                            <span class="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#252548] border border-[#3f3f6e] text-cyan-300">JPG / JPEG</span>
+                            <span class="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#252548] border border-[#3f3f6e] text-blue-300">PNG</span>
+                        </div>
+                        
+                        <label for="imageInput" class="inline-flex items-center btn-primary text-white font-semibold py-3 px-8 rounded-xl cursor-pointer text-xs shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 transition-all border border-cyan-400/20">
+                            <i data-lucide="folder-plus" class="w-4 h-4 mr-2"></i> Wybierz pliki z dysku
                         </label>
                         <input type="file" id="imageInput" name="images[]" accept="image/png, image/jpeg, image/gif, .arw" multiple>
                     </div>
 
-                    <div id="file-previews" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 bg-[#151525] p-3 rounded-xl border border-[#3f3f6e] min-h-[60px] hidden"></div>
+                    <!-- PREVIEW GRID -->
+                    <div id="filePreviewsWrapper" class="hidden space-y-2">
+                        <div class="flex items-center justify-between px-1">
+                            <span id="previewCountBadge" class="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                                <i data-lucide="images" class="w-3.5 h-3.5"></i> Wybrane pliki
+                            </span>
+                            <button type="button" id="clearAllFilesBtn" class="text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1 hover:underline">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i> Wyczyść listę
+                            </button>
+                        </div>
+                        <div id="file-previews" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 bg-[#15152a]/70 p-3.5 rounded-2xl border border-[#3f3f6e] max-h-64 overflow-y-auto custom-scrollbar"></div>
+                    </div>
                     
-                    <div class="bg-[#151525] p-4 rounded-xl border border-[#3f3f6e]">
-                        <div class="grid sm:grid-cols-3 gap-4 items-center">
-                            <div class="flex flex-col space-y-1">
-                                <label for="maxEdge" class="text-xs font-semibold text-gray-400">Max. Rozmiar (px)</label>
-                                <input type="number" id="maxEdge" name="max_edge" min="100" value="2000" class="rounded-lg p-2 text-xs font-bold w-full">
-                            </div>
-                            <div class="flex flex-col space-y-1">
+                    <!-- KROK 3: PARAMETRY KOMPRESJI I PRZETWARZANIA -->
+                    <div class="bg-[#15152a]/70 p-5 rounded-2xl border border-[#3f3f6e]">
+                        <div class="grid sm:grid-cols-3 gap-6 items-center">
+                            <!-- Rozmiar -->
+                            <div class="flex flex-col space-y-2">
                                 <div class="flex justify-between items-center">
-                                    <label for="compressionLevel" class="text-xs font-semibold text-gray-400">Jakość</label>
-                                    <span id="compressionLevelValue" class="text-xs font-bold text-cyan-400">85%</span>
+                                    <label for="maxEdge" class="text-xs font-semibold text-gray-300">Maks. Dłuższa Krawędź</label>
+                                    <span class="text-[10px] text-gray-500 font-mono">piksele</span>
                                 </div>
-                                <input type="range" id="compressionLevel" min="1" max="100" value="85" class="w-full h-1.5 bg-[#1a1a2e] rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                                <div class="flex items-center gap-2">
+                                    <input type="number" id="maxEdge" name="max_edge" min="500" max="8000" step="100" value="2000" class="rounded-xl p-2.5 text-xs font-bold bg-[#1a1a32] border border-[#3f3f6e] text-white focus:border-cyan-500 outline-none w-full">
+                                </div>
+                                <div class="flex gap-1.5 pt-1">
+                                    <button type="button" onclick="setMaxEdge(1600)" class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252548] hover:bg-[#353565] text-gray-300 border border-[#3f3f6e] transition-colors">1600</button>
+                                    <button type="button" onclick="setMaxEdge(2048)" class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252548] hover:bg-[#353565] text-gray-300 border border-[#3f3f6e] transition-colors">2048</button>
+                                    <button type="button" onclick="setMaxEdge(3000)" class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252548] hover:bg-[#353565] text-gray-300 border border-[#3f3f6e] transition-colors">3000</button>
+                                    <button type="button" onclick="setMaxEdge(4000)" class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#252548] hover:bg-[#353565] text-gray-300 border border-[#3f3f6e] transition-colors">4000</button>
+                                </div>
                             </div>
-                            <div class="flex items-center pt-4 sm:pt-0">
-                                <label class="flex items-center space-x-2 cursor-pointer group">
-                                    <div class="relative flex items-center">
-                                        <input type="checkbox" id="showPreviews" class="peer h-4 w-4 cursor-pointer appearance-none rounded border border-[#3f3f6e] bg-[#1a1a2e] checked:bg-cyan-500">
-                                        <i data-lucide="check" class="absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"></i>
+
+                            <!-- Jakość -->
+                            <div class="flex flex-col space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <label for="compressionLevel" class="text-xs font-semibold text-gray-300">Jakość Kompresji JPG</label>
+                                    <span id="compressionLevelValue" class="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20">85%</span>
+                                </div>
+                                <input type="range" id="compressionLevel" min="40" max="100" value="85" class="w-full h-2 bg-[#1a1a32] rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                                <p class="text-[10px] text-gray-500">Zrównoważony kompromis ostrości i wagi pliku</p>
+                            </div>
+
+                            <!-- Przełącznik miniatur -->
+                            <div class="flex items-center sm:justify-center pt-2 sm:pt-0">
+                                <label class="flex items-center space-x-3 cursor-pointer group select-none">
+                                    <div class="relative">
+                                        <input type="checkbox" id="showPreviews" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-[#1a1a32] border border-[#3f3f6e] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600 peer-checked:after:bg-white peer-checked:border-cyan-500"></div>
                                     </div>
-                                    <span class="text-[10px] text-gray-500 group-hover:text-white">Pokaż miniatury</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-semibold text-gray-300 group-hover:text-white">Podgląd miniatur</span>
+                                        <span class="text-[10px] text-gray-500">Generuj obrazy na żywo</span>
+                                    </div>
                                 </label>
                             </div>
                         </div>
@@ -291,34 +473,47 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 </form>
             </div>
 
-            <div id="mainButtonContainer" class="mt-4">
-                <button type="submit" form="uploadForm" id="submitBtn" class="btn-primary w-full text-white font-bold py-3 px-6 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xl uppercase tracking-widest text-xs flex items-center justify-center gap-2" disabled>
+            <!-- GŁÓWNY PRZYCISK WYSYŁANIA -->
+            <div id="mainButtonContainer" class="mt-6">
+                <button type="submit" form="uploadForm" id="submitBtn" class="btn-primary w-full text-white font-bold py-4 px-8 rounded-2xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xl shadow-cyan-500/20 uppercase tracking-widest text-xs flex items-center justify-center gap-2.5 border border-cyan-400/20" disabled>
                     <i data-lucide="lock" class="w-4 h-4"></i>
-                    Rozpocznij wysyłanie
+                    <span>Wybierz pliki, aby rozpocząć</span>
                 </button>
             </div>
             
-            <div id="progressContainer" class="mt-6 hidden bg-[#151525] p-4 rounded-xl border border-[#3f3f6e]">
-                <div class="flex justify-between items-end mb-2">
+            <!-- PROGRESS CONTAINER -->
+            <div id="progressContainer" class="mt-6 hidden bg-[#15152a]/90 p-6 rounded-2xl border border-[#3f3f6e] shadow-xl animate-in fade-in">
+                <div class="flex justify-between items-end mb-3">
                     <div>
-                        <span id="progressText" class="text-lg font-black text-white">0 / 0</span>
+                        <span class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Postęp przetwarzania:</span>
+                        <div id="progressText" class="text-xl font-black text-white mt-0.5">0 / 0</div>
                     </div>
                     <div class="text-right">
-                        <span id="percentageText" class="text-lg font-black text-cyan-400">0%</span>
+                        <span id="percentageText" class="text-2xl font-black text-cyan-400">0%</span>
                     </div>
                 </div>
-                <div class="w-full bg-[#1a1a2e] rounded-full h-2 p-0.5 border border-[#3f3f6e] overflow-hidden">
-                    <div id="progressBar" class="bg-gradient-to-r from-cyan-600 to-blue-500 h-full rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(6,182,212,0.5)]" style="width: 0%"></div>
+                <div class="w-full bg-[#1a1a32] rounded-full h-3 p-0.5 border border-[#3f3f6e] overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(6,182,212,0.6)]" style="width: 0%"></div>
                 </div>
             </div>
             
             <div id="finalSummary" class="mt-6 hidden"></div>
-            <div id="statusListContainer" class="mt-4 max-h-40 overflow-y-auto custom-scrollbar space-y-1 pr-2"></div>
+            <div id="statusListContainer" class="mt-4 max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pr-2"></div>
             <div id="dynamicButtonContainer" class="mt-6 flex flex-col sm:flex-row gap-2 justify-center"></div>
         </div>
     </div>
     
     <script>
+    const CSRF_TOKEN = <?php echo json_encode(get_csrf_token()); ?>;
+    
+    function setMaxEdge(val) {
+        const input = document.getElementById('maxEdge');
+        if (input) {
+            input.value = val;
+            input.dispatchEvent(new Event('change'));
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
         const CONFIG = { MAX_FILES_PER_BATCH: 2000, UPLOAD_CONCURRENCY: 3, THUMBNAIL_WIDTH: 400, STATUS_MESSAGES: { processing: ["Szyfruję pliki...", "Kompresuję obrazy...", "Przetwarzam lokalnie...", "Wysyłam na serwer..."], done: ["Sukces! Wszystko gotowe."], stopped: ["Proces zatrzymany."] } };
@@ -328,6 +523,9 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             imageInput: document.getElementById('imageInput'), 
             dropZone: document.getElementById('drop-zone'), 
             filePreviews: document.getElementById('file-previews'), 
+            filePreviewsWrapper: document.getElementById('filePreviewsWrapper'),
+            previewCountBadge: document.getElementById('previewCountBadge'),
+            clearAllFilesBtn: document.getElementById('clearAllFilesBtn'),
             mainButtonContainer: document.getElementById('mainButtonContainer'), 
             dynamicButtonContainer: document.getElementById('dynamicButtonContainer'), 
             submitBtn: document.getElementById('submitBtn'), 
@@ -338,13 +536,20 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             compression: { maxEdge: document.getElementById('maxEdge'), levelSlider: document.getElementById('compressionLevel'), levelValue: document.getElementById('compressionLevelValue') },
             showPreviews: document.getElementById('showPreviews'),
             
-            // New UI
+            // UI elements for album & key modes
             albumModeRadios: document.getElementsByName('album_mode'),
+            existingAlbumContainer: document.getElementById('existingAlbumContainer'),
             existingAlbumSelect: document.getElementById('existingAlbumSelect'),
             newAlbumInputs: document.getElementById('newAlbumInputs'),
             keyModeRadios: document.getElementsByName('key_mode'),
+            existingKeyContainer: document.getElementById('existingKeyContainer'),
             existingKeyInput: document.getElementById('existingKeyInput'),
-            vaultKeyHint: document.getElementById('vaultKeyHint')
+            keyModeExplanation: document.getElementById('keyModeExplanation'),
+            vaultKeyHint: document.getElementById('vaultKeyHint'),
+            labelAlbumExisting: document.getElementById('label-album-existing'),
+            labelAlbumNew: document.getElementById('label-album-new'),
+            labelKeyNew: document.getElementById('label-key-new'),
+            labelKeyExisting: document.getElementById('label-key-existing')
         };
 
         // --- Sejf Kluczy (pobieranie z bazy / sesji) ---
@@ -390,27 +595,39 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
 
         // --- UI Logic for Album/Key Selection ---
         function updateUIState() {
-            const albumMode = document.querySelector('input[name="album_mode"]:checked').value;
+            const albumMode = document.querySelector('input[name="album_mode"]:checked')?.value || 'existing';
             const isNewAlbum = albumMode === 'new';
             
-            UI.existingAlbumSelect.disabled = isNewAlbum;
-            if(isNewAlbum) {
-                UI.existingAlbumSelect.classList.add('opacity-50');
-                UI.newAlbumInputs.classList.remove('opacity-50', 'pointer-events-none');
-                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
-            } else {
-                UI.existingAlbumSelect.classList.remove('opacity-50');
-                UI.newAlbumInputs.classList.add('opacity-50', 'pointer-events-none');
+            if (UI.labelAlbumExisting && UI.labelAlbumNew) {
+                if (isNewAlbum) {
+                    UI.labelAlbumNew.className = 'flex items-center justify-center p-2.5 rounded-xl border border-cyan-500 bg-cyan-950/40 text-white cursor-pointer transition-all text-xs font-semibold gap-2 shadow-sm ring-1 ring-cyan-500/40';
+                    UI.labelAlbumExisting.className = 'flex items-center justify-center p-2.5 rounded-xl border border-[#3f3f6e] bg-[#1a1a32]/60 text-gray-400 hover:text-white cursor-pointer transition-all text-xs font-semibold gap-2';
+                    UI.existingAlbumContainer.classList.add('hidden');
+                    UI.newAlbumInputs.classList.remove('hidden', 'opacity-0');
+                    if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
+                } else {
+                    UI.labelAlbumExisting.className = 'flex items-center justify-center p-2.5 rounded-xl border border-cyan-500 bg-cyan-950/40 text-white cursor-pointer transition-all text-xs font-semibold gap-2 shadow-sm ring-1 ring-cyan-500/40';
+                    UI.labelAlbumNew.className = 'flex items-center justify-center p-2.5 rounded-xl border border-[#3f3f6e] bg-[#1a1a32]/60 text-gray-400 hover:text-white cursor-pointer transition-all text-xs font-semibold gap-2';
+                    UI.existingAlbumContainer.classList.remove('hidden');
+                    UI.newAlbumInputs.classList.add('hidden', 'opacity-0');
+                }
             }
 
-            const keyMode = document.querySelector('input[name="key_mode"]:checked').value;
+            const keyMode = document.querySelector('input[name="key_mode"]:checked')?.value || 'new';
             const isExistingKey = keyMode === 'existing';
-            if(isExistingKey) {
-                UI.existingKeyInput.classList.remove('opacity-50', 'pointer-events-none');
-                UI.existingKeyInput.focus();
-            } else {
-                UI.existingKeyInput.classList.add('opacity-50', 'pointer-events-none');
-                if (UI.vaultKeyHint) UI.vaultKeyHint.classList.add('hidden');
+            if (UI.labelKeyNew && UI.labelKeyExisting) {
+                if (isExistingKey) {
+                    UI.labelKeyExisting.className = 'flex items-center justify-center p-2.5 rounded-xl border border-cyan-500 bg-cyan-950/40 text-white cursor-pointer transition-all text-xs font-semibold gap-2 shadow-sm ring-1 ring-cyan-500/40';
+                    UI.labelKeyNew.className = 'flex items-center justify-center p-2.5 rounded-xl border border-[#3f3f6e] bg-[#1a1a32]/60 text-gray-400 hover:text-white cursor-pointer transition-all text-xs font-semibold gap-2';
+                    UI.existingKeyContainer.classList.remove('hidden', 'opacity-0');
+                    UI.keyModeExplanation.classList.add('hidden');
+                    UI.existingKeyInput.focus();
+                } else {
+                    UI.labelKeyNew.className = 'flex items-center justify-center p-2.5 rounded-xl border border-cyan-500 bg-cyan-950/40 text-white cursor-pointer transition-all text-xs font-semibold gap-2 shadow-sm ring-1 ring-cyan-500/40';
+                    UI.labelKeyExisting.className = 'flex items-center justify-center p-2.5 rounded-xl border border-[#3f3f6e] bg-[#1a1a32]/60 text-gray-400 hover:text-white cursor-pointer transition-all text-xs font-semibold gap-2';
+                    UI.existingKeyContainer.classList.add('hidden', 'opacity-0');
+                    UI.keyModeExplanation.classList.remove('hidden');
+                }
             }
         }
         UI.albumModeRadios.forEach(r => r.addEventListener('change', () => { updateUIState(); checkAlbumKeyMatch(); }));
@@ -627,7 +844,19 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             } 
         };
         
-        const updateSubmitButton = () => { const hasFiles = STATE.filesToUpload.length > 0; UI.submitBtn.disabled = !hasFiles; UI.submitBtn.textContent = hasFiles ? `Przetwórz i wyślij (${STATE.filesToUpload.length} plików)` : 'Wybierz pliki, aby rozpocząć'; };
+        const updateSubmitButton = () => { 
+            const count = STATE.filesToUpload.length;
+            const hasFiles = count > 0; 
+            UI.submitBtn.disabled = !hasFiles; 
+            if (hasFiles) {
+                const noun = count === 1 ? 'plik' : (count < 5 ? 'pliki' : 'plików');
+                UI.submitBtn.innerHTML = `<i data-lucide="lock" class="w-4 h-4 mr-2"></i><span>Zaszyfruj i wyślij (${count} ${noun})</span>`;
+            } else {
+                UI.submitBtn.innerHTML = `<i data-lucide="lock" class="w-4 h-4 mr-2"></i><span>Wybierz pliki, aby rozpocząć</span>`;
+            }
+            lucide.createIcons();
+        };
+
         const readFileWithExif = async (file) => { 
             try { 
                 const tags = await ExifReader.load(file); 
@@ -671,7 +900,13 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
         const renderThumbnails = async () => { 
             cleanupResources();
             UI.filePreviews.innerHTML = '';
-            UI.filePreviews.classList.toggle('hidden', STATE.filesToUpload.length === 0);
+            const count = STATE.filesToUpload.length;
+            const hasFiles = count > 0;
+            if (UI.filePreviewsWrapper) UI.filePreviewsWrapper.classList.toggle('hidden', !hasFiles);
+            if (UI.previewCountBadge) {
+                const noun = count === 1 ? 'zdjęcie' : (count < 5 ? 'zdjęcia' : 'zdjęć');
+                UI.previewCountBadge.innerHTML = `<i data-lucide="images" class="w-3.5 h-3.5 mr-1.5"></i> Wybrane zdjęcia (${count} ${noun})`;
+            }
             
             const filesToShow = STATE.filesToUpload;
             const usePreviews = UI.showPreviews.checked;
@@ -680,21 +915,21 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 const fileData = filesToShow[index];
                 const isArw = fileData.file.name.toLowerCase().endsWith('.arw');
                 const item = document.createElement('div');
-                item.className = 'thumbnail-item aspect-square bg-gray-700/50 rounded-md flex items-center justify-center p-1 border border-gray-600 overflow-hidden';
+                item.className = 'thumbnail-item aspect-square bg-[#1a1a32] rounded-xl flex items-center justify-center p-1 border border-[#3f3f6e] overflow-hidden relative shadow-sm group';
                 
                 if (!usePreviews) {
                     item.innerHTML = `
-                        <div class="flex flex-col items-center text-[10px] text-gray-500 text-center space-y-1">
-                            <i data-lucide="${isArw ? 'file-digit' : 'image'}" class="w-6 h-6 text-gray-600"></i>
-                            <span class="truncate w-16 px-1">${fileData.file.name}</span>
+                        <div class="flex flex-col items-center text-[10px] text-gray-400 text-center space-y-1 p-1">
+                            <i data-lucide="${isArw ? 'file-digit' : 'image'}" class="w-6 h-6 text-cyan-400"></i>
+                            <span class="truncate w-14 font-mono">${fileData.file.name}</span>
                         </div>
-                        <div class="thumbnail-remove-btn" data-index="${index}"><span>&times;</span></div>
+                        <div class="thumbnail-remove-btn" data-index="${index}" title="Usuń plik">&times;</div>
                     `;
                     UI.filePreviews.appendChild(item);
                     continue;
                 }
 
-                item.innerHTML = `<img src="" class="max-w-full max-h-full object-contain opacity-0 transition-opacity duration-300"><div class="thumbnail-remove-btn" data-index="${index}"><span>&times;</span></div>`;
+                item.innerHTML = `<img src="" class="max-w-full max-h-full object-contain opacity-0 transition-opacity duration-300 rounded-lg"><div class="thumbnail-remove-btn" data-index="${index}" title="Usuń plik">&times;</div>`;
                 const img = item.querySelector('img');
                 UI.filePreviews.appendChild(item);
 
@@ -744,6 +979,7 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 
                 setStatus('WYSYŁANIE', 'text-orange-400', 'bg-orange-500/10');
                 const fd = new FormData(); 
+                fd.append('csrf_token', CSRF_TOKEN);
                 fd.append('main_encrypted_file', new Blob([encMain])); 
                 fd.append('thumb_encrypted_file', new Blob([encThumb])); 
                 fd.append('original_filename', encOriginalName); 
@@ -777,8 +1013,11 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 
                 // Create Album via AJAX
                 try {
-                    const fd = new FormData(); fd.append('action', 'create_album_ajax');
-                    fd.append('internal_name', iName); fd.append('public_title', pTitle);
+                    const fd = new FormData(); 
+                    fd.append('csrf_token', CSRF_TOKEN);
+                    fd.append('action', 'create_album_ajax');
+                    fd.append('internal_name', iName); 
+                    fd.append('public_title', pTitle);
                     const res = await fetch('', {method: 'POST', body: fd});
                     const json = await res.json();
                     if(!json.success) throw new Error(json.error);
@@ -807,7 +1046,10 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 try {
                     await fetch('vault_api.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': CSRF_TOKEN
+                        },
                         body: JSON.stringify({ 
                             action: 'add_key', 
                             key_hex: STATE.encryptionKey.hex, 
@@ -948,6 +1190,39 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 if (!isNaN(indexToRemove)) { STATE.filesToUpload.splice(indexToRemove, 1); renderThumbnails(); updateSubmitButton(); }
             }
         });
+        if (UI.clearAllFilesBtn) {
+            UI.clearAllFilesBtn.addEventListener('click', () => {
+                STATE.filesToUpload = [];
+                renderThumbnails();
+                updateSubmitButton();
+            });
+        }
+
+        // Segmented card click helpers
+        if (UI.labelAlbumExisting) {
+            UI.labelAlbumExisting.addEventListener('click', () => {
+                const r = document.querySelector('input[name="album_mode"][value="existing"]');
+                if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+            });
+        }
+        if (UI.labelAlbumNew) {
+            UI.labelAlbumNew.addEventListener('click', () => {
+                const r = document.querySelector('input[name="album_mode"][value="new"]');
+                if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+            });
+        }
+        if (UI.labelKeyNew) {
+            UI.labelKeyNew.addEventListener('click', () => {
+                const r = document.querySelector('input[name="key_mode"][value="new"]');
+                if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+            });
+        }
+        if (UI.labelKeyExisting) {
+            UI.labelKeyExisting.addEventListener('click', () => {
+                const r = document.querySelector('input[name="key_mode"][value="existing"]');
+                if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+            });
+        }
     });
     </script>
     <script src="https://cdn.jsdelivr.net/gh/WowkDigital/WowkDigitalFooter@latest/wowk-digital-footer.js"></script>

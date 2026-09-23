@@ -22,33 +22,36 @@ function sendTelegramNotification($albumName, $clientData, $selectedFiles) {
         return false;
     }
 
-    $msg = "📸 *Nowy wybór zdjęć!*\n";
+    $esc = function($val) {
+        return htmlspecialchars((string)($val ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    };
+
+    $msg = "📸 <b>Nowy wybór zdjęć!</b>\n";
     $msg .= "----------------------------\n";
-    $msg .= "📂 *Album:* " . $albumName . "\n";
-    $msg .= "👤 *Klient:* " . ($clientData->name ?? 'Brak') . "\n";
-    $msg .= "📧 *Email:* " . ($clientData->email ?? 'Brak') . "\n";
-    $msg .= "📞 *Tel:* " . ($clientData->phone ?? 'Brak') . "\n";
+    $msg .= "📂 <b>Album:</b> " . $esc($albumName) . "\n";
+    $msg .= "👤 <b>Klient:</b> " . $esc($clientData->name ?? 'Brak') . "\n";
+    $msg .= "📧 <b>Email:</b> " . $esc($clientData->email ?? 'Brak') . "\n";
+    $msg .= "📞 <b>Tel:</b> " . $esc($clientData->phone ?? 'Brak') . "\n";
     
     if (!empty($clientData->instagram) || !empty($clientData->telegram) || !empty($clientData->facebook)) {
-        $msg .= "🔗 *Sociale:* ";
-        if (!empty($clientData->instagram)) $msg .= "IG: @" . ltrim($clientData->instagram, '@') . " ";
-        if (!empty($clientData->telegram)) $msg .= "TG: @" . ltrim($clientData->telegram, '@') . " ";
-        if (!empty($clientData->facebook)) $msg .= "FB: " . $clientData->facebook . " ";
+        $msg .= "🔗 <b>Sociale:</b> ";
+        if (!empty($clientData->instagram)) $msg .= "IG: @" . $esc(ltrim($clientData->instagram, '@')) . " ";
+        if (!empty($clientData->telegram)) $msg .= "TG: @" . $esc(ltrim($clientData->telegram, '@')) . " ";
+        if (!empty($clientData->facebook)) $msg .= "FB: " . $esc($clientData->facebook) . " ";
         $msg .= "\n";
     }
 
     if (!empty($clientData->notes)) {
-        $msg .= "📝 *Notatki:* " . $clientData->notes . "\n";
+        $msg .= "📝 <b>Notatki:</b> " . $esc($clientData->notes) . "\n";
     }
 
-    $msg .= "🖼️ *Liczba zdjęć:* " . count($selectedFiles) . "\n\n";
-    $msg .= "*Lista plików:*\n";
+    $msg .= "🖼️ <b>Liczba zdjęć:</b> " . count($selectedFiles) . "\n\n";
+    $msg .= "<b>Lista plików:</b>\n";
     
     // Ograniczamy listę plików w jednej wiadomości (Telegram ma limit 4096 znaków)
-    $maxFiles = 100; // Rozsądny limit początkowy
     $currentCount = 0;
     foreach ($selectedFiles as $file) {
-        $line = "`" . $file . "`\n";
+        $line = "<code>" . $esc($file) . "</code>\n";
         // Sprawdzamy czy dodanie kolejnej linii nie przekroczy limitu (z marginesem)
         if (mb_strlen($msg . $line) > 3900) {
             $msg .= "... i " . (count($selectedFiles) - $currentCount) . " więcej plików.";
@@ -62,7 +65,7 @@ function sendTelegramNotification($albumName, $clientData, $selectedFiles) {
     $payload = [
         'chat_id' => TELEGRAM_CHAT_ID,
         'text' => $msg,
-        'parse_mode' => 'Markdown'
+        'parse_mode' => 'HTML'
     ];
 
     $ch = curl_init();

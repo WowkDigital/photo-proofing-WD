@@ -10,18 +10,30 @@ $photosDir = __DIR__ . '/photos';
 $logsDir = __DIR__ . '/selection_logs';
 
 // Check if already installed
-if (file_exists($configFile)) {
-    $alreadyInstalled = true;
-} else {
-    $alreadyInstalled = false;
-}
+$alreadyInstalled = file_exists($configFile);
 
 $errors = [];
 $success = false;
+$installerDeleted = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
-    $albumTitle = $_POST['album_title'] ?? 'My Photo Gallery';
+// Obsługa natychmiastowego usunięcia instalatora
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_installer') {
+    if ($alreadyInstalled) {
+        if (@unlink(__FILE__)) {
+            header('Location: admin/');
+            exit;
+        } else {
+            $errors[] = "Nie udało się usunąć install.php (sprawdź uprawnienia do zapisu w katalogu głównym). Usuń plik ręcznie.";
+        }
+    } else {
+        $errors[] = "Instalacja nie została jeszcze ukończona.";
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled && (!isset($_POST['action']) || $_POST['action'] !== 'delete_installer')) {
+    $albumTitle = trim($_POST['album_title'] ?? 'My Photo Gallery');
     $password = $_POST['admin_password'] ?? '';
+    $autoDelete = isset($_POST['auto_delete_installer']);
     
     // Contact Links
     $contactTelegram = $_POST['contact_telegram'] ?? '';
@@ -111,7 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
                     client_notes TEXT,
                     selection_date DATETIME DEFAULT CURRENT_TIMESTAMP,
                     ip_address TEXT,
-                    album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL
+                    album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL,
+                    status TEXT DEFAULT 'new'
                 )");
 
                 // Selected Photos Table
@@ -140,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
                     ip_address TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )");
+
+                // Indeksy wydajnościowe
+                $pdo->exec("
+                    CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album_id);
+                    CREATE INDEX IF NOT EXISTS idx_selections_album ON selections(album_id);
+                    CREATE INDEX IF NOT EXISTS idx_selected_photos_sel ON selected_photos(selection_id);
+                    CREATE INDEX IF NOT EXISTS idx_logs_created ON logs(created_at);
+                ");
 
                 // Vault Salt
                 $vaultSalt = bin2hex(random_bytes(16));
@@ -174,6 +195,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
                 }
 
                 $success = true;
+                $alreadyInstalled = true;
+
+                // Automatyczne usunięcie pliku jeśli zaznaczono
+                if ($autoDelete) {
+                    if (@unlink(__FILE__)) {
+                        $installerDeleted = true;
+                    }
+                }
+
             } catch (PDOException $e) {
                 $errors[] = "Database error: " . $e->getMessage();
             }
@@ -182,21 +212,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
         }
     }
 }
-
-// Permission Checks
-$permissions = [
-    'data' => is_writable($dbDir) || @mkdir($dbDir, 0777, true),
-    'photos' => is_writable($photosDir) || @mkdir($photosDir, 0777, true),
-    'api' => is_writable(__DIR__ . '/api')
-];
-
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Install | photo-proofing-WD</title>
+    <title>Instalacja | Photo Proofing</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -216,59 +238,110 @@ $permissions = [
                 <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
             </div>
             <div>
-                <h1 class="text-3xl font-bold text-white">Installation Wizard</h1>
-                <p class="text-gray-400">Setup your photo-proofing environment</p>
+                <h1 class="text-3xl font-bold text-white">Instalator Photo Proofing</h1>
+                <p class="text-gray-400">Konfiguracja środowiska i bazy danych galerii</p>
             </div>
         </div>
 
+        <?php if (!empty($errors)): ?>
+            <div class="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl mb-8">
+                <ul class="list-disc list-inside text-sm">
+                    <?php foreach($errors as $error): ?>
+                        <li><?php echo htmlspecialchars($error); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+
         <?php if ($success): ?>
             <div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-6 rounded-2xl mb-8 flex items-start gap-4">
-                <i data-lucide="check-circle" class="w-6 h-6 shrink-0"></i>
-                <div>
-                    <h3 class="font-bold text-lg text-white">Installation Successful!</h3>
-                    <p class="mt-1 text-emerald-400/80">Everything is ready. Please <strong>delete install.php</strong> for security.</p>
-                    <a href="admin/" class="inline-flex items-center gap-2 mt-6 px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold">
-                        Enter Admin Panel <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </a>
+                <i data-lucide="check-circle" class="w-6 h-6 shrink-0 mt-1"></i>
+                <div class="space-y-4 w-full">
+                    <div>
+                        <h3 class="font-bold text-lg text-white">Instalacja zakończona sukcesem!</h3>
+                        <p class="mt-1 text-emerald-400/90 text-sm">
+                            Baza danych i konfiguracja zostały utworzone pomyślnie.
+                        </p>
+                    </div>
+
+                    <?php if ($installerDeleted): ?>
+                        <div class="p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                            <span>Plik <strong>install.php</strong> został automatycznie usunięty z serwera dla bezpieczeństwa instancji.</span>
+                        </div>
+                        <a href="admin/" class="inline-flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold">
+                            Przejdź do Panelu Administratora <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </a>
+                    <?php else: ?>
+                        <div class="p-3 bg-amber-500/20 border border-amber-500/30 rounded-xl text-xs text-amber-300">
+                            Zalecamy natychmiastowe usunięcie pliku <strong>install.php</strong>, aby zapobiec ponownej instalacji przez osoby trzecie.
+                        </div>
+                        <div class="flex flex-wrap gap-4 pt-2">
+                            <form method="POST">
+                                <input type="hidden" name="action" value="delete_installer">
+                                <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all font-bold shadow-lg shadow-rose-600/20">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i> Usuń install.php i przejdź do panelu
+                                </button>
+                            </form>
+                            <a href="admin/" class="inline-flex items-center gap-2 px-6 py-3 bg-slate-700 text-gray-200 rounded-xl hover:bg-slate-600 transition-all font-semibold">
+                                Przejdź do Panelu <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         <?php elseif ($alreadyInstalled): ?>
             <div class="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-6 rounded-2xl mb-8 flex items-start gap-4">
-                <i data-lucide="alert-triangle" class="w-6 h-6 shrink-0"></i>
-                <div>
-                    <h3 class="font-bold text-white">System Already Configured</h3>
-                    <p class="mt-1 text-amber-400/80">The `api/config.php` exists. To reinstall, delete this file and refresh.</p>
-                    <a href="admin/" class="inline-flex items-center gap-2 mt-4 text-indigo-400 hover:text-indigo-300 font-semibold">Go to login &rarr;</a>
+                <i data-lucide="shield-alert" class="w-6 h-6 shrink-0 mt-1"></i>
+                <div class="space-y-4 w-full">
+                    <div>
+                        <h3 class="font-bold text-white text-lg">System jest już skonfigurowany</h3>
+                        <p class="mt-1 text-amber-400/90 text-sm">
+                            Plik <code>api/config.php</code> już istnieje. Ze względów bezpieczeństwa plik instalatora <code>install.php</code> nie powinien pozostawać na serwerze produkcyjnym.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-4 pt-2">
+                        <form method="POST">
+                            <input type="hidden" name="action" value="delete_installer">
+                            <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all font-bold shadow-lg shadow-rose-600/20">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i> Usuń install.php z serwera
+                            </button>
+                        </form>
+                        <a href="admin/" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold">
+                            Przejdź do logowania &rarr;
+                        </a>
+                    </div>
                 </div>
             </div>
         <?php else: ?>
-
-            <?php if (!empty($errors)): ?>
-                <div class="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl mb-8">
-                    <ul class="list-disc list-inside text-sm">
-                        <?php foreach($errors as $error): ?>
-                            <li><?php echo $error; ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            <?php endif; ?>
 
             <form method="POST" class="space-y-8">
                 <!-- Section 1 -->
                 <div class="space-y-6">
                     <h2 class="text-xl font-bold text-white flex items-center gap-3">
                         <span class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-sm text-indigo-400">1</span>
-                        Global Config
+                        Konfiguracja Podstawowa
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="md:col-span-1">
-                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Gallery Title</label>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Tytuł Galerii</label>
                             <input type="text" name="album_title" value="Client Selection Gallery" required class="w-full px-4 py-3 rounded-xl input-dark">
                         </div>
                         <div class="md:col-span-1">
-                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Admin Password</label>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Hasło Administratora</label>
                             <input type="password" name="admin_password" placeholder="••••••••" required class="w-full px-4 py-3 rounded-xl input-dark">
                         </div>
+                    </div>
+
+                    <div class="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" name="auto_delete_installer" value="1" checked class="w-5 h-5 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">Automatycznie usuń install.php po zakończeniu (zalecane)</span>
+                                <p class="text-xs text-gray-400">Kasuje instalator natychmiast po utworzeniu bazy, zabezpieczając instancję przed niepowołanym dostępem.</p>
+                            </div>
+                        </label>
                     </div>
                 </div>
 
@@ -276,7 +349,7 @@ $permissions = [
                 <div class="space-y-6">
                     <h2 class="text-xl font-bold text-white flex items-center gap-3">
                         <span class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-sm text-indigo-400">2</span>
-                        Contact Links
+                        Linki Kontaktowe
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="url" name="contact_telegram" placeholder="Telegram URL" class="w-full px-4 py-3 rounded-xl input-dark text-sm">
@@ -291,29 +364,29 @@ $permissions = [
                 <div class="space-y-6">
                     <h2 class="text-xl font-bold text-white flex items-center gap-3">
                         <span class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-sm text-indigo-400">3</span>
-                        Telegram Bot Integration
+                        Integracja z Telegram Bot
                     </h2>
                     <div class="p-6 bg-indigo-500/5 rounded-2xl border border-indigo-500/10 space-y-4">
                         <label class="flex items-center gap-3 cursor-pointer group">
                             <input type="checkbox" name="telegram_bot_enabled" class="w-5 h-5 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500">
-                            <span class="text-sm font-semibold text-gray-300 group-hover:text-white transition-colors">Enable instant notifications</span>
+                            <span class="text-sm font-semibold text-gray-300 group-hover:text-white transition-colors">Włącz powiadomienia o wyborach klientów</span>
                         </label>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="text" name="telegram_bot_token" placeholder="Bot Token (from @BotFather)" class="w-full px-4 py-3 rounded-xl input-dark text-sm">
-                            <input type="text" name="telegram_chat_id" placeholder="Chat ID (from @userinfobot)" class="w-full px-4 py-3 rounded-xl input-dark text-sm">
+                            <input type="text" name="telegram_bot_token" placeholder="Bot Token (@BotFather)" class="w-full px-4 py-3 rounded-xl input-dark text-sm">
+                            <input type="text" name="telegram_chat_id" placeholder="Chat ID (@userinfobot)" class="w-full px-4 py-3 rounded-xl input-dark text-sm">
                         </div>
                     </div>
                 </div>
 
                 <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all">
-                    Finalize Setup
+                    Zakończ Instalację
                 </button>
             </form>
 
         <?php endif; ?>
 
         <div class="mt-12 pt-8 border-t border-white/5 flex justify-between items-center text-[10px] uppercase tracking-widest text-gray-600 font-bold">
-            <p>&copy; 2024 WowkDigital Premium</p>
+            <p>&copy; 2024-2026 WowkDigital Premium</p>
             <p>Built with <i data-lucide="heart" class="w-3 h-3 inline text-rose-500"></i> for photographers</p>
         </div>
     </div>
@@ -323,4 +396,3 @@ $permissions = [
     </script>
 </body>
 </html>
-

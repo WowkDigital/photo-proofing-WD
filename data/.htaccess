@@ -1,2 +1,9 @@
-Order Deny,Allow
-Deny from all
+# Blokada bezpośredniego dostępu do bazy danych SQLite
+<IfModule authz_core_module>
+    Require all denied
+</IfModule>
+<IfModule !authz_core_module>
+    Order Deny,Allow
+    Deny from all
+</IfModule>
+

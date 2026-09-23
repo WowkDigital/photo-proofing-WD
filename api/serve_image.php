@@ -39,18 +39,27 @@ if (!file_exists($file_path) || !is_readable($file_path)) {
     exit('Plik nie istnieje lub brak uprawnień do odczytu.');
 }
 
-// ZMIANA: Ustawiamy uniwersalny nagłówek dla danych binarnych.
-// Nie jest to już obraz, a zaszyfrowany plik, który przeglądarka
-// ma pobrać jako surowe dane (strumień oktetów).
+// Nagłówki dla danych binarnych oraz wydajny cache przeglądarki
+$mtime = filemtime($file_path);
+$etag = '"' . md5($safe_filename . '_' . $type . '_' . $mtime) . '"';
+
 header('Content-Type: application/octet-stream');
-header('Content-Length: ' . filesize($file_path));
-// Poniższy nagłówek sugeruje przeglądarce, by nie indeksowała pliku
 header('X-Robots-Tag: noindex, nofollow');
-// Dodajemy nagłówek, który zapobiega cache'owaniu zaszyfrowanych plików przez pośredników
-header('Cache-Control: no-cache, must-revalidate');
+header('ETag: ' . $etag);
+header('Cache-Control: private, max-age=86400, stale-while-revalidate=604800');
+
+// Obsługa warunkowego żądania (HTTP 304 Not Modified)
+if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim($_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+    http_response_code(304);
+    exit;
+}
+
+header('Content-Length: ' . filesize($file_path));
 
 // Wyczyść bufor wyjściowy i wyślij plik do przeglądarki
-ob_clean();
+if (ob_get_level()) {
+    ob_clean();
+}
 flush();
 readfile($file_path);
 exit;

@@ -5,7 +5,17 @@ if (strpos($_SERVER['REQUEST_URI'], '/admin') !== false && strpos($_SERVER['REQU
     header("Location: " . $_SERVER['REQUEST_URI'] . "/");
     exit;
 }
-session_start();
+// Bezpieczne parametry ciasteczek sesyjnych
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    ]);
+    session_start();
+}
+require_once __DIR__ . '/../api/csrf.php';
+
 if (!file_exists(__DIR__ . '/../api/config.php')) {
     header('Location: ../install.php');
     exit;
