@@ -430,13 +430,42 @@ try {
         });
         
         const CryptoHelper = {
-            async importKeyFromHex(hex) {
-                if(!hex || hex.length !== 64) throw new Error("Invalid hex key");
-                const buf = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                return await window.crypto.subtle.importKey("raw", buf, { name: "AES-GCM" }, true, ["decrypt"]);
+            parseKeyToBuffer(keyStr) {
+                if (!keyStr) throw new Error("Brak klucza szyfrowania.");
+                keyStr = decodeURIComponent(keyStr.trim());
+                if (keyStr.includes('#')) keyStr = keyStr.split('#').pop().trim();
+
+                // 1. Sprawdź format HEX (64 znaki)
+                if (/^[0-9a-fA-F]{64}$/.test(keyStr)) {
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 64; i += 2) {
+                        bytes[i / 2] = parseInt(keyStr.substring(i, i + 2), 16);
+                    }
+                    return bytes.buffer;
+                }
+
+                // 2. Format Base64 / Base64URL
+                let b64 = keyStr.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '+');
+                while (b64.length % 4 !== 0) b64 += '=';
+                try {
+                    const binary = atob(b64);
+                    if (binary.length !== 32) throw new Error("Klucz musi mieć 32 bajty.");
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 32; i++) bytes[i] = binary.charCodeAt(i);
+                    return bytes.buffer;
+                } catch (e) {
+                    throw new Error("Nieprawidłowy format klucza (wymagany Base64 lub Hex).");
+                }
             },
-            async sha256(hex) {
-                const msgBuffer = new TextEncoder().encode(hex.trim());
+            async importKey(keyStr, usages = ["decrypt"]) {
+                const buf = this.parseKeyToBuffer(keyStr);
+                return await window.crypto.subtle.importKey("raw", buf, { name: "AES-GCM" }, true, usages);
+            },
+            async importKeyFromHex(hex) {
+                return await this.importKey(hex, ["decrypt"]);
+            },
+            async sha256(str) {
+                const msgBuffer = new TextEncoder().encode(str.trim());
                 const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -449,22 +478,27 @@ try {
         };
 
         const VAULT = {
-            keys: {}, // hash -> hex
+            keys: {}, // hash -> key_string (Base64 lub Hex)
             async addKeys(text) {
-                // Obsługa wklejania całych linków (wyciągamy fragment po #)
-                const potentialKeys = text.split(/[\n\s,]+/).map(k => {
-                    const trimmed = k.trim();
-                    if (trimmed.includes('#')) return trimmed.split('#').pop();
+                // Obsługa wklejania całych linków (wyciągamy fragment po #) lub kluczy
+                const tokens = text.split(/[\n\s,]+/).map(k => {
+                    let trimmed = k.trim();
+                    if (trimmed.includes('#')) trimmed = trimmed.split('#').pop().trim();
                     return trimmed;
-                }).filter(k => k.length === 64 && /^[0-9a-fA-F]+$/.test(k));
+                }).filter(k => k.length > 0);
 
                 let added = 0;
-                for (const hex of potentialKeys) {
-                    const hash = await CryptoHelper.sha256(hex.toLowerCase());
-                    if (!this.keys[hash]) {
-                        this.keys[hash] = hex.toLowerCase();
-                        added++;
-                        await this.saveToDatabase(hex.toLowerCase(), hash);
+                for (const keyStr of tokens) {
+                    try {
+                        CryptoHelper.parseKeyToBuffer(keyStr);
+                        const hash = await CryptoHelper.sha256(keyStr);
+                        if (!this.keys[hash]) {
+                            this.keys[hash] = keyStr;
+                            added++;
+                            await this.saveToDatabase(keyStr, hash);
+                        }
+                    } catch (e) {
+                        // Ignoruj niepoprawne wpisy
                     }
                 }
                 if (added > 0) {

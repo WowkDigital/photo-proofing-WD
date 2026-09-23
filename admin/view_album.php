@@ -325,17 +325,39 @@ if (!in_array($activeTab, ['selections', 'photos'])) {
 
         // KRYPTOGRAFIA (Zero-Knowledge Decoder)
         const CryptoHelper = {
-            hexStringToArrayBuffer(hexString) {
-                const bytes = new Uint8Array(hexString.length / 2);
-                for (let i = 0; i < hexString.length; i += 2) {
-                    bytes[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
+            parseKeyToBuffer(keyStr) {
+                if (!keyStr) throw new Error("Brak klucza szyfrowania.");
+                keyStr = decodeURIComponent(keyStr.trim());
+                if (keyStr.includes('#')) keyStr = keyStr.split('#').pop().trim();
+
+                // 1. Sprawdź format HEX (64 znaki)
+                if (/^[0-9a-fA-F]{64}$/.test(keyStr)) {
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 64; i += 2) {
+                        bytes[i / 2] = parseInt(keyStr.substring(i, i + 2), 16);
+                    }
+                    return bytes.buffer;
                 }
-                return bytes.buffer;
+
+                // 2. Format Base64 / Base64URL
+                let b64 = keyStr.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '+');
+                while (b64.length % 4 !== 0) b64 += '=';
+                try {
+                    const binary = atob(b64);
+                    if (binary.length !== 32) throw new Error("Klucz musi mieć 32 bajty.");
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 32; i++) bytes[i] = binary.charCodeAt(i);
+                    return bytes.buffer;
+                } catch (e) {
+                    throw new Error("Nieprawidłowy format klucza (wymagany Base64 lub Hex).");
+                }
+            },
+            async importKey(keyStr, usages = ["decrypt"]) {
+                const buf = this.parseKeyToBuffer(keyStr);
+                return await window.crypto.subtle.importKey("raw", buf, { name: "AES-GCM" }, true, usages);
             },
             async importKeyFromHex(hex) {
-                if(!hex || hex.length !== 64) throw new Error("Nieprawidłowa długość klucza.");
-                const buf = this.hexStringToArrayBuffer(hex);
-                return await window.crypto.subtle.importKey("raw", buf, { name: "AES-GCM" }, true, ["decrypt"]);
+                return await this.importKey(hex, ["decrypt"]);
             },
             async decryptString(base64str, key) {
                 if (!base64str) return base64str;
@@ -874,13 +896,14 @@ ${!isDecrypted ? '==================================================\n⚠️ STA
 
         document.getElementById('apply-key-btn').addEventListener('click', async () => {
             const val = document.getElementById('manual-key-input').value.trim();
-            let hex = val;
-            if(val.includes('#')) hex = val.split('#').pop().trim();
+            let key = val;
+            if(val.includes('#')) key = val.split('#').pop().trim();
             
-            if(hex.length === 64 && /^[0-9a-fA-F]+$/.test(hex)) {
-                await VAULT.saveKey(hex);
-            } else {
-                alert("Nieprawidłowy klucz (wymagane 64 znaki hex lub pełny link z #kluczem).");
+            try {
+                CryptoHelper.parseKeyToBuffer(key);
+                await VAULT.saveKey(key);
+            } catch (e) {
+                alert("Nieprawidłowy klucz (wymagany poprawny Base64, Hex lub pełny link z #kluczem).");
             }
         });
 

@@ -820,17 +820,40 @@
             const decryptionPromises = new Map();
 
             // --- SEKCJA: LOGIKA SZYFROWANIA (DEKRYPCJI) ---
-            function hexStringToArrayBuffer(hexString) {
-                const bytes = new Uint8Array(hexString.length / 2);
-                for (let i = 0; i < hexString.length; i += 2) {
-                    bytes[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
+            function parseKeyToBuffer(keyStr) {
+                if (!keyStr) throw new Error("Brak klucza szyfrowania.");
+                keyStr = decodeURIComponent(keyStr.trim());
+                if (keyStr.includes('#')) keyStr = keyStr.split('#').pop().trim();
+
+                // 1. Sprawdź format HEX (64 znaki - wsteczna kompatybilność)
+                if (/^[0-9a-fA-F]{64}$/.test(keyStr)) {
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 64; i += 2) {
+                        bytes[i / 2] = parseInt(keyStr.substring(i, i + 2), 16);
+                    }
+                    return bytes.buffer;
                 }
-                return bytes.buffer;
+
+                // 2. Format Base64 / Base64URL
+                let b64 = keyStr.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '+');
+                while (b64.length % 4 !== 0) b64 += '=';
+                try {
+                    const binary = atob(b64);
+                    if (binary.length !== 32) {
+                        throw new Error("Klucz musi mieć 32 bajty (256 bitów).");
+                    }
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 32; i++) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    return bytes.buffer;
+                } catch (e) {
+                    throw new Error("Nieprawidłowy format klucza (wymagany poprawny Base64 lub Hex).");
+                }
             }
 
-            async function importKey(hexKey) {
-                if (hexKey.length !== 64) throw new Error("Nieprawidłowa długość klucza.");
-                const keyBuffer = hexStringToArrayBuffer(hexKey);
+            async function importKey(keyString) {
+                const keyBuffer = parseKeyToBuffer(keyString);
                 return crypto.subtle.importKey("raw", keyBuffer, { name: "AES-GCM" }, true, ["decrypt"]);
             }
 
@@ -1463,7 +1486,8 @@
 
                 passwordModal.form.addEventListener('submit', (e) => {
                     e.preventDefault();
-                    const key = passwordModal.input.value.trim();
+                    let key = passwordModal.input.value.trim();
+                    if (key.includes('#')) key = key.split('#').pop().trim();
                     if (key) startApplication(key);
                 });
 
@@ -1625,8 +1649,9 @@
                 lucide.createIcons();
                 initializeEventListeners();
 
-                const keyFromUrl = window.location.hash.substring(1);
-                if (keyFromUrl && keyFromUrl.length === 64) {
+                const hash = window.location.hash;
+                const keyFromUrl = hash ? hash.substring(1).trim() : '';
+                if (keyFromUrl) {
                     startApplication(keyFromUrl);
                 }
             }

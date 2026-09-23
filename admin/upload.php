@@ -378,9 +378,9 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                                 </div>
 
                                 <div id="existingKeyContainer" class="space-y-1.5 hidden opacity-0 transition-all">
-                                    <label for="existingKeyInput" class="text-[11px] font-semibold text-gray-400">Klucz szyfrowania (64 znaki hex):</label>
+                                    <label for="existingKeyInput" class="text-[11px] font-semibold text-gray-400">Klucz szyfrowania (Base64 lub Hex):</label>
                                     <div class="relative">
-                                        <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="Wklej 64-znakowy hex..." class="w-full rounded-xl p-2.5 text-xs text-cyan-400 font-mono bg-[#1a1a32] border border-[#3f3f6e] focus:border-cyan-500 outline-none">
+                                        <input type="text" id="existingKeyInput" name="existing_key_hex" placeholder="Wklej klucz (Base64 lub Hex)..." class="w-full rounded-xl p-2.5 text-xs text-cyan-400 font-mono bg-[#1a1a32] border border-[#3f3f6e] focus:border-cyan-500 outline-none">
                                     </div>
                                 </div>
 
@@ -650,14 +650,50 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
 
         const CryptoHelper = { 
             async generateKey() { return await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]); }, 
+            parseKeyToBuffer(keyStr) {
+                if (!keyStr) throw new Error("Brak klucza szyfrowania.");
+                keyStr = decodeURIComponent(keyStr.trim());
+                if (keyStr.includes('#')) keyStr = keyStr.split('#').pop().trim();
+
+                // 1. Sprawdź format HEX (64 znaki)
+                if (/^[0-9a-fA-F]{64}$/.test(keyStr)) {
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 64; i += 2) {
+                        bytes[i / 2] = parseInt(keyStr.substring(i, i + 2), 16);
+                    }
+                    return bytes.buffer;
+                }
+
+                // 2. Format Base64 / Base64URL
+                let b64 = keyStr.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '+');
+                while (b64.length % 4 !== 0) b64 += '=';
+                try {
+                    const binary = atob(b64);
+                    if (binary.length !== 32) throw new Error("Klucz musi mieć 32 bajty.");
+                    const bytes = new Uint8Array(32);
+                    for (let i = 0; i < 32; i++) bytes[i] = binary.charCodeAt(i);
+                    return bytes.buffer;
+                } catch (e) {
+                    throw new Error("Nieprawidłowy format klucza (wymagany Base64 lub Hex).");
+                }
+            },
+            async importKey(keyStr, usages = ["encrypt"]) {
+                const buf = this.parseKeyToBuffer(keyStr);
+                return await window.crypto.subtle.importKey("raw", buf, { name: "AES-GCM" }, true, usages);
+            },
             async importKeyFromHex(hex) { 
-                if(!hex || hex.length !== 64) throw new Error("Nieprawidłowy format klucza (wymagane 64 znaki hex).");
-                const buf = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                return await window.crypto.subtle.importKey("raw", buf, { name: "AES-GCM" }, true, ["encrypt"]);
+                return await this.importKey(hex, ["encrypt"]);
+            },
+            async exportKeyToBase64(key) {
+                const buf = await window.crypto.subtle.exportKey("raw", key);
+                const bytes = new Uint8Array(buf);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                return btoa(binary);
             },
             async exportKeyToHex(key) { const buf = await window.crypto.subtle.exportKey("raw", key); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); }, 
-            async sha256(hex) {
-                const msgBuffer = new TextEncoder().encode(hex);
+            async sha256(str) {
+                const msgBuffer = new TextEncoder().encode(str.trim());
                 const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -1035,11 +1071,12 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
             try {
                 if(keyMode === 'new') {
                     const k = await CryptoHelper.generateKey();
-                    const hex = await CryptoHelper.exportKeyToHex(k);
-                    STATE.encryptionKey = { key: k, hex: hex, hash: await CryptoHelper.sha256(hex) };
+                    const b64 = await CryptoHelper.exportKeyToBase64(k);
+                    STATE.encryptionKey = { key: k, raw: b64, hex: b64, b64: b64, hash: await CryptoHelper.sha256(b64) };
                 } else {
-                    const hex = UI.existingKeyInput.value.trim();
-                    STATE.encryptionKey = { key: await CryptoHelper.importKeyFromHex(hex), hex: hex, hash: await CryptoHelper.sha256(hex) };
+                    const rawKey = UI.existingKeyInput.value.trim();
+                    const importedKey = await CryptoHelper.importKey(rawKey, ["encrypt"]);
+                    STATE.encryptionKey = { key: importedKey, raw: rawKey, hex: rawKey, b64: rawKey, hash: await CryptoHelper.sha256(rawKey) };
                 }
                 
                 // Automatycznie zapisz klucz do sejfu administratora
@@ -1102,7 +1139,8 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
                 // Konstrukcja linku:
                 const path = window.location.pathname; 
                 const projectRoot = path.substring(0, path.lastIndexOf('/admin/')); 
-                const albumUrl = `${host}${projectRoot}/album.html?s=${STATE.targetAlbumSlug}#${STATE.encryptionKey.hex}`;
+                const albumKey = STATE.encryptionKey.b64 || STATE.encryptionKey.hex || STATE.encryptionKey.raw;
+                const albumUrl = `${host}${projectRoot}/album.html?s=${STATE.targetAlbumSlug}#${albumKey}`;
 
                 UI.finalSummary.innerHTML = `
                     <div class="bg-[#151525] p-8 rounded-3xl text-center border border-[#3f3f6e] shadow-2xl relative overflow-hidden group">
@@ -1131,11 +1169,11 @@ $preselectedAlbumId = $_GET['album_id'] ?? 0;
 
                             <div class="bg-[#1a1a2e] p-5 rounded-2xl border border-[#3f3f6e] text-left group/key relative">
                                 <p class="text-[10px] text-gray-500 uppercase font-black mb-3 flex items-center">
-                                    <i data-lucide="key" class="w-3 h-3 mr-2"></i> Sam Klucz Szyfrowania (HEX)
+                                    <i data-lucide="key" class="w-3 h-3 mr-2"></i> Sam Klucz Szyfrowania (Base64)
                                 </p>
                                 <div class="flex items-center gap-3">
-                                    <input readonly value="${STATE.encryptionKey.hex}" class="flex-grow bg-transparent text-purple-400 text-xs font-mono border-none focus:ring-0 p-0 overflow-hidden text-ellipsis">
-                                    <button onclick="navigator.clipboard.writeText('${STATE.encryptionKey.hex}'); this.classList.add('bg-green-500'); this.innerHTML='<i data-lucide=\'check\'></i>'" class="bg-[#2c2c54] hover:bg-[#3f3f6e] text-white p-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center min-w-[44px]">
+                                    <input readonly value="${albumKey}" class="flex-grow bg-transparent text-purple-400 text-xs font-mono border-none focus:ring-0 p-0 overflow-hidden text-ellipsis">
+                                    <button onclick="navigator.clipboard.writeText('${albumKey}'); this.classList.add('bg-green-500'); this.innerHTML='<i data-lucide=\'check\'></i>'" class="bg-[#2c2c54] hover:bg-[#3f3f6e] text-white p-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center min-w-[44px]">
                                         <i data-lucide="copy" class="w-4 h-4"></i>
                                     </button>
                                 </div>
